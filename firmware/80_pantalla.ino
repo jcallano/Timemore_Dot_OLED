@@ -94,19 +94,20 @@ void renderPourOverViewerOled() {
 // Opción del menú que se está editando (dosis, ratio o tiempo) en UiState::MenuEdit
 uint8_t menuEditItem = MI_DOSE;
 
-// Opciones del menú según el modo. Devuelve cuántas hay.
+// Opciones del menú según el modo. Devuelve cuántas hay. Orden: lo de cada día arriba (receta,
+// historial, modo) y lo técnico abajo.
 uint8_t buildMenuItems(uint8_t* ids) {
   uint8_t n = 0;
-  ids[n++] = MI_MODE;
-  ids[n++] = MI_HISTORY;
   if (brewMode == BrewMode::Espresso) {
     ids[n++] = MI_DOSE;
     ids[n++] = MI_RATIO;
     ids[n++] = MI_TARGET_TIME;
   } else {
-    ids[n++] = MI_AUTOTIMER;
     ids[n++] = MI_DOSE;
+    ids[n++] = MI_AUTOTIMER;
   }
+  ids[n++] = MI_HISTORY;
+  ids[n++] = MI_MODE;
   ids[n++] = MI_BRIGHT;
   ids[n++] = MI_BRIDGE;
   ids[n++] = MI_RELINK;

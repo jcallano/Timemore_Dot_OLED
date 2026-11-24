@@ -107,9 +107,14 @@ void executeButtonMultiClickAction(uint8_t clicks) {
       const uint8_t item = ids[menuSelectedIndex];
       switch (item) {
         case MI_MODE:
+        {
           setBrewMode(brewMode == BrewMode::Espresso ? BrewMode::PourOver : BrewMode::Espresso);
-          menuSelectedIndex = 0;   // las opciones cambian con el modo
+          // Las opciones cambian con el modo: el cursor sigue sobre "Modo"
+          uint8_t nids[MENU_MAX_ITEMS];
+          const uint8_t nn = buildMenuItems(nids);
+          for (uint8_t k = 0; k < nn; k++) if (nids[k] == MI_MODE) menuSelectedIndex = static_cast<int8_t>(k);
           break;
+        }
         case MI_HISTORY:   // historial del modo actual
           uiState                 = UiState::PourViewer;
           viewerShowsShots        = (brewMode == BrewMode::Espresso);

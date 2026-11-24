@@ -190,22 +190,24 @@ Se abre con **3 clics** (o manteniendo pulsado 1,5 s). Gira para moverte y haz 1
 
 | Pour-over | Espresso |
 | :---: | :---: |
-| <img src="docs/img/pantallas/04_menu.png" width="340" alt="Menú en modo pour-over: modo, pour-overs, auto-timer y dosis"> | <img src="docs/img/pantallas/12_menu_espresso.png" width="340" alt="Menú en modo espresso: modo, shots, dosis y ratio"> |
+| <img src="docs/img/pantallas/04_menu.png" width="340" alt="Menú en modo pour-over: dosis, auto-timer, pour-overs y modo"> | <img src="docs/img/pantallas/12_menu_espresso.png" width="340" alt="Menú en modo espresso: dosis, ratio, tiempo y shots"> |
 
 | Opción | Modo | Qué hace |
 | :--- | :--- | :--- |
-| **Modo** | los dos | Pour-over ↔ espresso (3.4) |
-| **Pour-overs (n/10)** / **Shots (n/10)** | según el modo | Abre el historial (3.2 / 3.3) |
-| **Auto-Tmr: ON/OFF** | pour-over | Arranque y parada automáticos del cronómetro (3.2) |
 | **Dosis** | los dos | Pour-over: 5-60 g, de 0,5 en 0,5 g. Espresso: 5-30 g, de 0,1 en 0,1 g. Cada modo guarda la suya |
+| **Auto-Tmr: ON/OFF** | pour-over | Arranque y parada automáticos del cronómetro (3.2) |
 | **Ratio** | espresso | 1:1,0 a 1:4,0; muestra el peso objetivo (3.3) |
 | **Tiempo** | espresso | Tiempo objetivo del shot, 10-90 s |
+| **Pour-overs (n/10)** / **Shots (n/10)** | según el modo | Abre el historial (3.2 / 3.3) |
+| **Modo** | los dos | Pour-over ↔ espresso (3.4). El cursor se queda en esta opción |
 | **Brillo** | los dos | Bajo / medio / alto |
 | **Puente BooKoo: ON/OFF** | los dos | Puente con la Wendougee (3.5) |
 | **Re-vincular Dot** | los dos | Olvida la Dot y busca otra |
 | **Actualizar (BLE)** | los dos | Actualizar el firmware por Bluetooth (3.7) |
 | **Apagar (sleep)** | los dos | Reposo inmediato (3.8) |
 | **Salir** | los dos | Vuelve al pesaje |
+
+Arriba va lo de cada día (la receta, el historial y el modo) y abajo los ajustes del aparato.
 
 ### 3.7 Actualización por Bluetooth
 
