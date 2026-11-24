@@ -1,0 +1,29 @@
+# Compilación (Arduino IDE / arduino-cli)
+build/
+*.bin
+*.elf
+*.map
+
+# Copias manuales de versiones anteriores (el historial queda en git)
+respaldo/
+cad/respaldo_v1/
+
+# CAD: modelos de terceros (licencia propia de cada autor) y ensamblajes generados
+cad/ref_*/
+cad/ensamble_display_timemore.FCStd
+cad/ensamble_display_timemore.step
+*.FCBak
+*.FCStd1
+
+# Python
+__pycache__/
+*.pyc
+
+# Editores y sistema
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+~$*

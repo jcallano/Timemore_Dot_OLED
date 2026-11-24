@@ -1,0 +1,16 @@
+# Texto con fin de línea normalizado
+* text=auto
+*.ino text
+*.cpp text
+*.h   text
+*.py  text
+*.md  text
+*.csv text
+*.txt text
+
+# CAD y binarios: sin conversión ni diff de texto
+*.FCStd binary
+*.step  binary
+*.stl   binary
+*.iges  binary
+*.png   binary
