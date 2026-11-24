@@ -11,7 +11,7 @@ Es un proyecto abierto: piezas fáciles de conseguir, una caja para imprimir en 
 
 ## ¿Se puede usar la Timemore Dot con la Wendougee?
 
-**Sí, con este aparato.** Las Wendougee Lita y Data-S (con E-Bar o GeeFlow) solo aceptan básculas de la marca **BooKoo**, y la Timemore Dot no está en su lista.
+**Sí, con este aparato** (probado con una **Wendougee Lita BA**). Las Wendougee Lita, Lita BA y Data-S (con E-Bar o GeeFlow) solo aceptan básculas de la marca **BooKoo**, y la Timemore Dot no está en su lista.
 
 El aparato hace de intermediario: recibe el peso de la Dot por Bluetooth y se lo pasa a la cafetera haciéndose pasar por una báscula BooKoo. Para la cafetera es como tener una BooKoo:
 
@@ -71,7 +71,7 @@ Y, claro, una **Timemore Black Mirror Dot**.
 
 ## In English
 
-**Use a Timemore Black Mirror Dot scale with a Wendougee espresso machine.** Wendougee Lita / Data-S machines (E-Bar, GeeFlow) only accept BooKoo smart scales. This small open-source ESP32-S3 device connects to the Timemore Dot over Bluetooth and presents itself to the machine as a **BooKoo Themis Ultra**, so the machine can read the Dot's weight in real time, tare, run the timer and stop the shot by target weight. It also gives the Dot what it lacks: an OLED display with weight, flow rate, brew ratio and timer, a rotary knob, auto-start/stop timer and a pour-over history. 3D-printable case and Arduino firmware included (Arduino IDE 2.3.10, esp32 core 3.3.12, NimBLE-Arduino 2.5.2). Documentation is in Spanish.
+**Use a Timemore Black Mirror Dot scale with a Wendougee espresso machine.** Wendougee Lita, Lita BA and Data-S machines (E-Bar, GeeFlow) only accept BooKoo smart scales. This small open-source ESP32-S3 device connects to the Timemore Dot over Bluetooth and presents itself to the machine as a **BooKoo Themis Ultra**, so the machine can read the Dot's weight in real time, tare, run the timer and stop the shot by target weight. It also gives the Dot what it lacks: an OLED display with weight, flow rate, brew ratio and timer, a rotary knob, auto-start/stop timer and a pour-over history. 3D-printable case and Arduino firmware included (Arduino IDE 2.3.10, esp32 core 3.3.12, NimBLE-Arduino 2.5.2). Documentation is in Spanish.
 
 ## Licencia
 
