@@ -1,7 +1,12 @@
 # Monitor Barista OLED y registro de pour-overs para la Timemore Black Mirror Dot
 
-Display inalámbrico para la báscula **Timemore Black Mirror Dot**. Muestra el peso, el caudal (g/s), el ratio 1:X y el cronómetro, y guarda las curvas de cada pour-over. Funciona sobre una **WeAct Studio ESP32-S3-A** (`ESP32-S3R8`, 8 MB de flash y 8 MB de PSRAM).
+La **Timemore Black Mirror Dot** es una báscula muy fina y precisa, pero no tiene pantalla de flujo ni botones de cronómetro: todo pasa por la app del móvil. Este proyecto es un **pequeño dispositivo que se pone al lado de la báscula y le da la pantalla y los controles que le faltan**. Conecta con la Dot por Bluetooth y muestra el peso, el caudal (g/s), el ratio 1:X y el cronómetro. Se maneja con un encoder giratorio y guarda las curvas de cada pour-over.
 
+Además, hace de **puente para usar la Dot con una cafetera Wendougee** (Lita / Data-S con E-Bar o GeeFlow). Esas máquinas solo aceptan básculas BooKoo, así que el dispositivo se presenta ante ellas como una BooKoo Themis Ultra y les reenvía el peso de la Dot en tiempo real (ver la sección 3.9).
+
+Funciona sobre una **WeAct Studio ESP32-S3-A** (`ESP32-S3R8`, 8 MB de flash y 8 MB de PSRAM), con una OLED de 2.42" y una caja imprimible en 3D.
+
+- **Manual de uso** (controles, modos y puente con la Wendougee): [`MANUAL.md`](./MANUAL.md).
 - Firmware: pestaña principal [`basicoledtimemore_dot.ino`](./basicoledtimemore_dot.ino), más pestañas y módulos (ver la sección 4).
 - Caja imprimible en 3D: [`cad/`](./cad/LEEME_caja.md).
 - Auditoría del firmware y cambios aplicados: [`AUDITORIA_FIRMWARE.md`](./AUDITORIA_FIRMWARE.md).
@@ -101,14 +106,15 @@ La barra superior muestra el estado de la Dot (`[FLOW]`, `[STBL]` o `[MOVE]`) y 
 2. **AUTO-TMR: ON/OFF:** arranque y parada automáticos.
 3. **DOSIS:** clic para editar, girar para ajustar, clic para guardar.
 4. **BRILLO:** bajo / medio / alto.
-5. **RE-VINCULAR DOT:** olvida la báscula y busca otra. En este modo solo se acepta un dispositivo con servicio Timemore (0xFFF0/0xFFE0) o nombre Timemore, y su MAC se guarda al recibir la primera trama válida. Una placa recién flasheada, sin báscula vinculada, hace lo mismo al arrancar.
-6. **ACTUALIZAR OTA:** ver 3.5.
-7. **APAGAR (SLEEP):** reposo inmediato.
-8. **SALIR.**
+5. **PUENTE BOOKOO: ON/OFF:** activa o desactiva el puente con la Wendougee (ver 3.9). Se guarda en la NVS; al cambiarlo, el Bluetooth se reinicia y la Dot se reconecta en unos 2 s.
+6. **RE-VINCULAR DOT:** olvida la báscula y busca otra. En este modo solo se acepta un dispositivo con servicio Timemore (0xFFF0/0xFFE0) o nombre Timemore, y su MAC se guarda al recibir la primera trama válida. Una placa recién flasheada, sin báscula vinculada, hace lo mismo al arrancar.
+7. **ACTUALIZAR OTA:** ver 3.5.
+8. **APAGAR (SLEEP):** reposo inmediato.
+9. **SALIR.**
 
 ### 3.5 Actualización por Wi-Fi (OTA)
 
-1. *Menú → 6. Actualizar OTA*. El LED se pone en magenta y la OLED muestra la red y su **clave**.
+1. *Menú → 7. Actualizar OTA*. El LED se pone en magenta y la OLED muestra la red y su **clave**.
 2. Conéctate a la red **`TIMEMORE-OTA`** con la clave de la pantalla (`TM` + 6 caracteres; única por placa y derivada de la MAC del chip).
 3. Abre **`http://192.168.4.1`** y sube el `.bin` (*Sketch → Export Compiled Binary*). También puedes subirlo con ArduinoOTA a `timemore-dot.local`, con la misma clave.
 4. La OLED muestra el progreso real y, al terminar, la placa se reinicia. **1 clic** cancela; sin actividad, sale a los 5 minutos.
@@ -120,14 +126,14 @@ La barra superior muestra el estado de la Dot (`[FLOW]`, `[STBL]` o `[MOVE]`) y 
 | Amarillo intermitente | Buscando o conectando con la Dot |
 | Rojo intermitente | Sin báscula |
 | Verde | Conectado, sin vertido |
+| Magenta | Wendougee conectada por el puente BooKoo (sin vertido). También en modo OTA, con la pantalla de OTA |
 | Cian | Vertido en curso (caudal ≥ 0.2 g/s) |
 | Destello blanco | Acción confirmada (clic, tara...) |
-| Magenta | Modo OTA |
 
 ### 3.7 Energía
 
 - **Atenuado** de la OLED a los 2 min sin actividad.
-- **Reposo** a los 10 min, o desde *Menú → 7*: *light sleep* real con la radio BLE apagada y RAM/PSRAM conservadas. Despierta al pulsar o girar el encoder, o al pulsar BOOT, y vuelve a conectar con la Dot.
+- **Reposo** a los 10 min (nunca mientras la Wendougee esté conectada por el puente), o desde *Menú → 8*: *light sleep* real con la radio BLE apagada y RAM/PSRAM conservadas. Despierta al pulsar o girar el encoder, o al pulsar BOOT, y vuelve a conectar con la Dot.
 - **Corte por batería baja** (solo con divisor): por debajo de 3.25 V sin cargar, muestra `BATERIA BAJA / CARGA POR USB-C` y entra en *deep sleep*. Solo despierta con el botón del encoder y, si sigue baja, se vuelve a apagar. En reposo se comprueba cada 10 min.
 - Nota de hardware: el LED WS2812B de la placa consume del orden de 0.5-1 mA incluso apagado.
 
@@ -138,10 +144,31 @@ La barra superior muestra el estado de la Dot (`[FLOW]`, `[STBL]` o `[MOVE]`) y 
 | `t` | Tara |
 | `c` | Cronómetro a 0 |
 | `r` | Olvidar la báscula vinculada |
+| `b` | Activar / desactivar el puente BooKoo |
 | `x` | **Autotest** de los módulos (protocolo, motor de caudal y puente BooKoo), con resultado OK/FALLO por caso |
 | `q` | **Sonda de la cola de la Dot**: envía `02 08` y mide cuánto tarda la respuesta. Con la cola vacía, unos 100 ms |
 
-Cada 5 s se imprime `[STATUS]` con la conexión, el peso, el caudal, las baterías, el intervalo BLE, los paquetes recibidos, el tiempo de volcado de la OLED y el diagnóstico del divisor. Con la Dot conectada se añade `[LINK]`: el MTU negociado, las notificaciones con varias tramas (`tramas juntadas N/M`) y el resultado de la última sonda.
+Cada 5 s se imprime `[STATUS]` con la conexión, el peso, el caudal, las baterías, el intervalo BLE, los paquetes recibidos, el tiempo de volcado de la OLED y el diagnóstico del divisor. Con la Dot conectada se añade `[LINK]`: el MTU negociado, las notificaciones con varias tramas (`tramas juntadas N/M`) y el resultado de la última sonda. Con el puente activo, `[BOOKOO]` indica el nombre anunciado, si la máquina está conectada y suscrita, y las tramas y comandos intercambiados.
+
+### 3.9 Puente con la Wendougee (BooKoo)
+
+Las Wendougee Lita / Data-S con E-Bar o GeeFlow solo aceptan básculas BooKoo. Con el puente activo, el dispositivo sigue conectado a la Dot y a la vez se anuncia como **`BOOKOO_SC_U XXXXXX`** (los 6 caracteres salen de la MAC de la placa):
+
+```text
+Dot --(peso, 10 Hz)--> dispositivo --(trama BooKoo)--> Wendougee
+                       dispositivo <--(tara, cronómetro)-- Wendougee
+```
+
+1. Activa *Menú → 5. Puente BooKoo: ON* (o la orden `b` por serie).
+2. En la máquina: *Machine Settings → Connectivity → Smart Scale → ON → Scan* y elige `BOOKOO_SC_U XXXXXX`.
+3. Al conectar, la OLED pasa a la **vista de puente** y el LED se pone magenta. La vista muestra:
+   - el intervalo y el RSSI de los dos enlaces (`M` = máquina, `D` = Dot);
+   - el peso, el caudal y el cronómetro, que maneja la máquina (`>` = en marcha);
+   - `TX` (tramas/s enviadas) y `AGE` (antigüedad del peso enviado, última / máxima del último segundo; la línea se invierte por encima de 150 ms);
+   - los últimos comandos de la máquina. Tras un `STOP`, el peso al parar y el **rebase** medido 3 s después (lo que sigue cayendo en la taza).
+4. La tara de la máquina es por software, como la del dispositivo: la OLED y la máquina ven siempre el mismo peso. Los shots de espresso no se guardan en el historial de pour-overs.
+
+Cada peso de la Dot se reenvía en cuanto llega, desde una tarea propia (no espera al refresco de la OLED). Si la Dot calla, se reenvía el último peso cada 250 ms. Protocolo en [`src/bookoo_protocol.*`](./src/bookoo_protocol.h); diseño en [`PLAN_PUENTE_BOOKOO.md`](./PLAN_PUENTE_BOOKOO.md).
 
 ---
 
@@ -156,6 +183,7 @@ Cada 5 s se imprime `[STATUS]` con la conexión, el peso, el caudal, las baterí
 | `30_storage.ino` | NVS (báscula vinculada, dosis, anillo de pour-overs) y PSRAM |
 | `40_brew.ino` | Auto-timer, auto-stop y muestreo de la extracción |
 | `50_ble_scale.ino` | Bluetooth: tramas, tara, cola de muestras, vinculación, escaneo y conexión no bloqueante |
+| `55_bookoo_bridge.ino` | Puente BooKoo: servidor GATT, anuncio, envío a la máquina y sus comandos |
 | `60_power.ino` | Batería, reposo (light sleep) y corte (deep sleep) |
 | `70_ota.ino` | Actualización por Wi-Fi |
 | `80_pantalla.ino` | Vistas, menú, visor e icono de batería |
@@ -163,7 +191,8 @@ Cada 5 s se imprime `[STATUS]` con la conexión, el peso, el caudal, las baterí
 | `90_app.ino` | `setup()` y `loop()` |
 | `src/timemore_protocol.*` | **Módulo puro**: decodificación de notificaciones y construcción de tramas Open Scale (CRC16) |
 | `src/flow_engine.*` | **Módulo puro**: motor de caudal |
-| `src/selftest.*` | Autotest de los dos módulos (orden `x`) |
+| `src/bookoo_protocol.*` | **Módulo puro**: tramas BooKoo (peso, comandos de la máquina, anuncio) |
+| `src/selftest.*` | Autotest de los módulos puros (orden `x`) |
 | `partitions.csv` | Tabla de particiones de 8 MB |
 
 El IDE de Arduino concatena las pestañas `.ino` detrás de la principal en orden alfabético, de ahí los prefijos numéricos. Los módulos de `src/` no dependen de Arduino ni de variables globales, así que se pueden probar con tramas o vertidos simulados (el autotest los ejecuta en la propia placa).
@@ -177,3 +206,5 @@ El IDE de Arduino concatena las pestañas `.ino` detrás de la principal en orde
 > Basado en "Timemore_Dot_OLED" de jcallano (https://github.com/jcallano/Timemore_Dot_OLED), licencia CC BY 3.0.
 
 La cita debe ir en el código derivado (por ejemplo, en un comentario de cabecera) y en su documentación, indicando si hiciste cambios. Los modelos 3D de terceros de `cad/ref_*` no están incluidos ni cubiertos por esta licencia. Texto completo en [`LICENSE`](./LICENSE).
+
+Proyecto personal e independiente, sin relación con Timemore, BooKoo ni Wendougee. Sus nombres se usan solo para indicar con qué equipos es compatible. El puente imita el protocolo BooKoo únicamente para que la máquina acepte la Dot como báscula.
