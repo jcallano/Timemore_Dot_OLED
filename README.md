@@ -63,6 +63,14 @@ Capturas fijas del modo pour-over, sacadas de la memoria del aparato:
 | **Gráfica del pour-over** | **Ficha del pour-over** |
 | <img src="docs/img/pantallas/02_historial_grafica.png" width="340" alt="Gráfica: peso acumulado y caudal del bloom y los tres vertidos"> | <img src="docs/img/pantallas/03_historial_ficha.png" width="340" alt="Ficha: agua, dosis, ratio, caudal medio y máximo, vertidos"> |
 
+## La caja
+
+Una caja en cuña para imprimir en 3D, con el panel inclinado: el mando a la izquierda (la mano derecha queda libre para el hervidor) y la pantalla a la derecha. Dentro van la batería 18650, el ESP32-S3 y el cargador USB-C.
+
+<img src="cad/renders/animacion.gif" width="560" alt="Animación de la caja: giro de 360°, explosionado con la placa, el cargador y la batería, y vuelta a montar">
+
+*Render de FreeCAD con los modelos reales de los componentes ([vídeo MP4](cad/renders/animacion.mp4)). Más vistas, archivos para imprimir y consejos de impresión en [`cad/`](./cad/LEEME_caja.md). Pronto: fotos de la caja impresa y el timelapse de la impresión.*
+
 ## Qué necesitas
 
 | Pieza | Modelo |

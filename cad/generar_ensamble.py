@@ -9,14 +9,13 @@ Ejecutar DESPUES de generar_caja.py:
 Crea:
     ensamble_display_timemore.FCStd   (grupos "Montado" y "Explosionado")
     ensamble_display_timemore.step    (montado, para ver en cualquier visor CAD)
-    render_montado.png, render_explosionado.png, render_interior.png
 Es una copia estatica: si cambias Parametros en la caja, vuelve a ejecutar ambos scripts.
+Los renders y la animacion: generar_renders.py (con freecad.exe) y montar_renders.js (ffmpeg).
 """
 import os
 import FreeCAD as App
 import Part
 import Import
-import MeshPart
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 caja = App.openDocument(os.path.join(HERE, "caja_display_timemore.FCStd"))
@@ -104,72 +103,4 @@ if not os.environ.get("SOLO_RENDER"):
             f.write("%s %.2f %.2f %.2f\n" % (k, v[0], v[1], v[2]))
     print("ENSAMBLE GUARDADO")
 
-# --------------------------------------------------------------------------
-# Renders rapidos con matplotlib (sombreado plano por triangulo)
-# --------------------------------------------------------------------------
-import numpy as np  # noqa: E402
-import matplotlib  # noqa: E402
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection  # noqa: E402
-
-
-def tris(shape, dz=0.0, defl=0.25):
-    m = MeshPart.meshFromShape(Shape=shape, LinearDeflection=defl, AngularDeflection=0.35)
-    pts = np.array([[p.x, p.y, p.z + dz] for p in m.Points])
-    idx = np.array([list(f) for f in m.Topology[1]])
-    t = pts[idx]
-    # subdivide triangulos grandes (el pintor de matplotlib ordena por centroide)
-    maxlen = 3.0
-    for _ in range(8):
-        e = np.max(np.linalg.norm(t - np.roll(t, 1, axis=1), axis=2), axis=1)
-        big = e > maxlen
-        if not big.any():
-            break
-        b = t[big]
-        a, c, d = b[:, 0], b[:, 1], b[:, 2]
-        ab, cd, da = (a + c) / 2, (c + d) / 2, (d + a) / 2
-        new = np.concatenate([np.stack([a, ab, da], 1), np.stack([ab, c, cd], 1),
-                              np.stack([da, cd, d], 1), np.stack([ab, cd, da], 1)])
-        t = np.concatenate([t[~big], new])
-    return t
-
-
-def render(items, fname, elev, azim, title):
-    allt, allc = [], []
-    light = np.array([-0.35, -0.75, 0.9])
-    light = light / np.linalg.norm(light)
-    for shp, col, dz in items:
-        t = tris(shp, dz)
-        n = np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0])
-        nl = np.linalg.norm(n, axis=1)
-        ok = nl > 1e-9
-        t, n = t[ok], n[ok] / nl[ok][:, None]
-        sh_ = 0.35 + 0.65 * np.abs(n @ light)
-        allt.append(t)
-        allc.append(np.clip(np.outer(sh_, col), 0, 1))
-    T = np.concatenate(allt)
-    C = np.concatenate(allc)
-    fig = plt.figure(figsize=(10, 7.5), dpi=130)
-    ax = fig.add_subplot(111, projection="3d")
-    pc = Poly3DCollection(T, facecolors=C, edgecolors="none", linewidths=0)
-    ax.add_collection3d(pc)
-    mn, mx = T.reshape(-1, 3).min(0), T.reshape(-1, 3).max(0)
-    ax.set_xlim(mn[0], mx[0]); ax.set_ylim(mn[1], mx[1]); ax.set_zlim(mn[2], mx[2])
-    ax.set_box_aspect(mx - mn)
-    ax.view_init(elev=elev, azim=azim)
-    ax.set_axis_off()
-    ax.set_title(title, fontsize=13)
-    fig.tight_layout()
-    fig.savefig(os.path.join(HERE, fname), facecolor="white")
-    plt.close(fig)
-    print("RENDER", fname, len(T), "triangulos")
-
-
-mont = [(s, c, 0.0) for _, s, c, _ in P]
-expl = [(s, c, DZ_ARRIBA if gr == "arriba" else DZ_ABAJO) for _, s, c, gr in P]
-interior = [(s, c, 0.0) for n, s, c, _ in P if n != "Carcasa"]
-render(mont, "render_montado.png", 22, -62, "Display Timemore Dot - montado")
-render(expl, "render_explosionado.png", 18, -62, "Vista explosionada")
-render(interior, "render_interior.png", 35, -62, "Interior (sin carcasa)")
-render(mont, "render_trasera.png", 20, 118, "Vista trasera: USB-C e interruptor")
+# Los renders se hacen aparte, con el visor de FreeCAD: generar_renders.py y montar_renders.js

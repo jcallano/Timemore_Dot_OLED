@@ -1,6 +1,21 @@
 # Caja del display Timemore Dot
 
-Archivos:
+<img src="renders/animacion.gif" width="560" alt="Animación de la caja: giro de 360°, explosionado con la placa, el cargador y la batería, y vuelta a montar">
+
+*La caja v2 con los modelos reales de los componentes ([vídeo en MP4](renders/animacion.mp4)).*
+
+| Montado | Explosionado |
+| :---: | :---: |
+| <img src="renders/montado.png" width="400" alt="Caja montada: encoder a la izquierda y OLED a la derecha en el panel inclinado"> | <img src="renders/explosionado.png" width="400" alt="Vista explosionada: carcasa arriba; tapa con portapilas, WeAct ESP32-S3 y TP4056 abajo"> |
+| **Interior (sin carcasa)** | **Trasera** |
+| <img src="renders/interior.png" width="400" alt="Interior: OLED con sus pisadores, encoder, interruptor, batería 18650 y placas"> | <img src="renders/trasera.png" width="400" alt="Trasera: interruptor y USB-C de carga; lateral con los USB-C del ESP32"> |
+
+## Impresión real
+
+*Pendiente: fotos del aparato impreso y montado, y el timelapse de la impresión.*
+
+## Archivos
+
 - `caja_display_timemore.FCStd`: modelo paramétrico. Todo depende de la hoja **Parametros**: cambia un valor, pulsa Recompute y vuelve a exportar `Carcasa` y `Tapa`.
 - `Carcasa.stl`, `Tapa.stl`, `PisadorOLED_izq.stl`, `PisadorOLED_der.stl`, `caja_display_timemore.step`: exportaciones para imprimir.
 - `generar_caja.py`: regenera todo desde cero (`freecadcmd.exe generar_caja.py`). Al terminar comprueba los choques entre piezas, también contra los modelos reales de `ref_*/`.
@@ -30,8 +45,8 @@ Archivos:
 - **Cierre**: 5 postes con **insertos de latón M3 × 5 × Ø4.2** (agujero de Ø4.0 × 7, cabe un M3 × 6 o un M3 × 8). La tapa lleva pasos de Ø3.4 y cajeado para la cabeza.
 
 ## Pendiente
+- Fotos de la caja impresa y el timelapse de la impresión (ver arriba).
 - `Carcasa_USBC.stl` y su recorte manual en la pared trasera (x = 100, z = 31) quedan **obsoletos**: ahora el USB-C del ESP32 sale por el lateral.
-- `ensamble_display_timemore.*` y los `render_*.png` son de la v1. Hay que volver a ejecutar `generar_ensamble.py`.
 
 ## Medidas a verificar (típicas, no medidas)
 Solo `aa_w`/`aa_h` (zona activa de 55 × 27.5 mm, la típica del 2.42"; el STEP no la trae, pero la ventana queda dentro del polarizador de 60 × 31.25 mm) y `bat_len` (largo de la celda, solo de referencia).
@@ -59,6 +74,12 @@ Con todos colocados dentro de la caja no hay choques con la carcasa, la tapa ni 
 ## Ensamble (para ver cómo queda el producto)
 - `ensamble_display_timemore.FCStd`: la carcasa, la tapa y todos los modelos reales en su sitio, con colores. Tiene dos grupos: **Montado** (visible) y **Explosionado** (oculto; la carcasa con la OLED, el encoder y el interruptor sube 45 mm, y la tapa con las placas baja 15 mm). En el árbol, pulsa la barra espaciadora sobre cada grupo para mostrarlo u ocultarlo.
 - `ensamble_display_timemore.step`: el ensamble montado, para abrirlo en cualquier visor CAD.
-- `render_montado.png`, `render_explosionado.png`, `render_interior.png`, `render_trasera.png`: vistas rápidas.
-- `generar_ensamble.py`: regenera todo lo anterior. Ejecútalo **después** de `generar_caja.py` si cambias parámetros, porque es una copia estática. Con `SOLO_RENDER=1` solo rehace las imágenes y no pisa el `.FCStd` con los colores. Si regeneras el `.FCStd`, freecadcmd no guarda colores: están en `ensamble_colores.txt`.
+- `generar_ensamble.py`: regenera los dos archivos anteriores. Ejecútalo **después** de `generar_caja.py` si cambias parámetros, porque es una copia estática. freecadcmd no guarda colores: están en `ensamble_colores.txt`.
+
+## Renders y animación
+Se hacen con el visor 3D de FreeCAD (iluminación y sombreado reales) a partir del ensamble:
+1. `"C:Program FilesFreeCAD 1.1inreecad.exe" generar_renders.py` (con interfaz gráfica, no con freecadcmd). Abre una ventana de FreeCAD, aplica los colores, renderiza y se cierra sola. Deja las 4 vistas sin recortar en `renders/raw/` y 216 fotogramas de 1600 × 1200 en `renders/frames/` (ambas carpetas fuera del repositorio).
+2. `node montar_renders.js` (necesita **ffmpeg** en el PATH). Recorta las vistas a su contenido (`renders/montado.png`, `explosionado.png`, `interior.png`, `trasera.png`, 1200 px) y monta la animación con un mismo recorte para todos los fotogramas: `renders/animacion.gif` (560 px, ~2,4 MB) y `renders/animacion.mp4` (1200 px, ~2,2 MB).
+
+La animación: giro de 360° montado, explosionado, giro de 360° explosionado y vuelta a montar (9 s a 24 fps).
 - El **mando** del encoder es un cilindro genérico de Ø24 × 16 mm, solo para ver proporciones; el de MakerWorld será distinto. El interruptor MTS-103 también está simplificado.

@@ -2,6 +2,10 @@ Carcasa 0.92 0.92 0.90
 Carcasa_expl 0.92 0.92 0.90
 Tapa 0.22 0.22 0.25
 Tapa_expl 0.22 0.22 0.25
+PisadorOLED_izq 0.85 0.45 0.12
+PisadorOLED_izq_expl 0.85 0.45 0.12
+PisadorOLED_der 0.85 0.45 0.12
+PisadorOLED_der_expl 0.85 0.45 0.12
 OLED_2_42 0.10 0.25 0.55
 OLED_2_42_expl 0.10 0.25 0.55
 Encoder_EC11 0.15 0.35 0.75

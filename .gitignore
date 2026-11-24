@@ -27,3 +27,8 @@ __pycache__/
 Thumbs.db
 desktop.ini
 ~$*
+
+# Fotogramas intermedios de la animación (cad/generar_renders.py)
+cad/renders/frames/
+cad/renders/LISTO.txt
+cad/renders/raw/
