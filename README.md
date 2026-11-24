@@ -49,7 +49,13 @@ Y un espresso de 18 g a 36 g, acelerado 2 veces: clic al pulsar la cafetera, pre
 
 <img src="docs/img/espresso_demo.gif" width="544" alt="Animación: espresso en la pantalla, con preinfusión, barra de progreso, aviso CASI, corte, goteo, shot guardado, gráfica y ficha">
 
-Capturas fijas de la pantalla, sacadas de la memoria del aparato:
+| Shot en marcha: aviso antes de cortar | Shot guardado |
+| :---: | :---: |
+| <img src="docs/img/pantallas/09_espresso_vista.png" width="340" alt="Espresso en marcha: 32,8 g de 36 g, ratio 1:1,82, preinfusión 8 s, aviso CASI"> | <img src="docs/img/pantallas/14_shot_guardado.png" width="340" alt="Shot guardado: 35,9 g, ratio 1:1,99, 27,4 s, preinfusión 8 s"> |
+| **Gráfica del shot** | **Ficha del shot** |
+| <img src="docs/img/pantallas/10_shots_grafica.png" width="340" alt="Gráfica del shot: peso, caudal, línea del objetivo y marca de la primera gota"> | <img src="docs/img/pantallas/11_shots_ficha.png" width="340" alt="Ficha del shot: bebida, objetivo, dosis, ratio, tiempo, preinfusión y goteo tras el corte"> |
+
+Capturas fijas del modo pour-over, sacadas de la memoria del aparato:
 
 | Pantalla principal | Pour-over guardado |
 | :---: | :---: |

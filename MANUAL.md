@@ -135,9 +135,11 @@ PI 8.0S    | 26.6 S          preinfusión | cronómetro del shot
 - La **gráfica** muestra el peso (línea), el caudal (barras), el peso objetivo (línea punteada horizontal) y la primera gota (línea punteada vertical).
 - La **ficha** muestra la bebida y el objetivo, la dosis y el ratio, el tiempo y la preinfusión, y cómo terminó: `CORTE:MANUAL +1.9G` (con lo que cayó después de cortar), `CORTE:CAFETERA` o `FIN AUTOMATICO`.
 
-| Shot | Gráfica | Ficha |
+| En marcha (`CASI`) | Goteo tras cortar | Shot guardado |
 | :---: | :---: | :---: |
-| <img src="docs/img/pantallas/09_espresso_vista.png" width="260" alt="Vista de espresso antes del shot"> | <img src="docs/img/pantallas/10_shots_grafica.png" width="260" alt="Gráfica del shot: peso, caudal, objetivo y primera gota"> | <img src="docs/img/pantallas/11_shots_ficha.png" width="260" alt="Ficha del shot: 35,9 g, 1:1,99, 27,4 s, preinfusión 8 s, corte manual +1,9 g"> |
+| <img src="docs/img/pantallas/09_espresso_vista.png" width="260" alt="Espresso en marcha: 32,8 g de 36 g, aviso CASI"> | <img src="docs/img/pantallas/13_espresso_goteo.png" width="260" alt="Tras el corte: GOTEO, 35,5 g"> | <img src="docs/img/pantallas/14_shot_guardado.png" width="260" alt="Shot guardado: 35,9 g, 1:1,99, 27,4 s, preinfusión 8 s"> |
+| **Gráfica** | **Ficha** | |
+| <img src="docs/img/pantallas/10_shots_grafica.png" width="260" alt="Gráfica del shot: peso, caudal, objetivo y primera gota"> | <img src="docs/img/pantallas/11_shots_ficha.png" width="260" alt="Ficha del shot: 35,9 g, 1:1,99, 27,4 s, preinfusión 8 s, corte manual +1,9 g"> | |
 
 > **Con la Wendougee** (puente activo, 3.5), es la cafetera la que arranca, hace la tara y corta el shot. El aparato también guarda esos shots en el historial, en cualquier modo, con la preinfusión medida desde que la cafetera arranca.
 
