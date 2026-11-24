@@ -114,6 +114,7 @@ Dot --(0xFFF1, 10 Hz)--> ESP32-S3 --(0x0FFE/0xFF11, trama 03 0B de 20 bytes)--> 
 | `0`-`3` | Vista de pesaje 0 a 3 |
 | `g` / `i` | Historial en el último pour-over: gráfica / ficha |
 | `m` | Abrir el menú |
+| `v` | **V60 en vivo**: 2 clics (tara y Auto-Brew), la misma receta que `d` vertida en tiempo real (2:45) y 1 clic al final. El peso simulado entra en la cola de muestras a 10 Hz en lugar del de la Dot y recorre todo el firmware. El resultado se guarda solo en RAM; al acabar se restauran la dosis, el Auto-Brew y el número del siguiente pour-over |
 
 **Capturas en PNG:** guarda la salida del monitor serie en un archivo (tras una o varias órdenes `s`) y ejecuta
 
@@ -122,6 +123,8 @@ node tools/oled_capture.js captura.log docs/img/pantallas nombre1 nombre2 ...
 ```
 
 Cada bloque `[FB]` se convierte en un PNG con aspecto de OLED. El script no tiene dependencias, solo usa Node.js. Las capturas del manual se hicieron así, con la secuencia `d s g s i s m s 0 s 1 s 2 s 3 s`.
+
+**GIF animado:** `node tools/oled_gif.js captura.log salida.gif [ms por fotograma]` convierte todos los bloques `[FB]` del log en un GIF. Una línea `[GIF] DELAY <ms>` antes de un bloque alarga ese fotograma. El GIF del README se hizo con `v` y una orden `s` por segundo durante 2:52, más `g s` e `i s` con `[GIF] DELAY` de 4 s. A 100 ms por fotograma queda acelerado 10 veces. Solo guarda la zona que cambia en cada fotograma: 171 fotogramas en 170 KB.
 
 Con un ordenador conectado por USB, el aparato no entra en reposo, porque el reposo apaga el USB y no se podría cargar firmware ni usar el monitor serie. Lo detecta con `HWCDC::isPlugged()`; con un cargador sin datos sí duerme.
 
@@ -167,6 +170,7 @@ Todo el firmware está en [`firmware/`](../firmware/); la carpeta y la pestaña 
 | `src/selftest.*` | Autotest de los módulos puros (orden `x`) |
 | `partitions.csv` | Tabla de particiones de 8 MB |
 | `../tools/oled_capture.js` | (fuera del sketch) Convierte los volcados de pantalla de la orden `s` en PNG |
+| `../tools/oled_gif.js` | (fuera del sketch) Convierte una serie de volcados en un GIF animado |
 
 El IDE de Arduino concatena las pestañas `.ino` detrás de la principal en orden alfabético, de ahí los prefijos numéricos. Los módulos de `src/` no dependen de Arduino ni de variables globales, así que se pueden probar con tramas o vertidos simulados (el autotest los ejecuta en la propia placa).
 

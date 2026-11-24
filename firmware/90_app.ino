@@ -56,6 +56,7 @@ void setup() {
 
 void loop() {
   // 0. Procesar las muestras de peso que encoló la tarea BLE y los eventos de desconexión
+  serviceDemoLivePour();   // demo en vivo (orden serie 'v'): inyecta su muestra antes de vaciar la cola
   drainWeightQueue();
   if (bleDisconnectEvent) {
     bleDisconnectEvent   = false;

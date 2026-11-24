@@ -37,7 +37,13 @@ Todo se explica en el **[manual de uso](./MANUAL.md)**.
 
 ## Así se ve
 
-Capturas reales de la pantalla, sacadas de la memoria del aparato. El resumen es de un pour-over de ejemplo: 15 g de café y 250 g de agua, con bloom de 30 s y tres vertidos.
+Un V60 completo, grabado de la propia pantalla del aparato y acelerado 10 veces: el cronómetro arranca solo al verter, el medidor marca el caudal y, al terminar, se guarda el resumen con su gráfica.
+
+<img src="docs/img/v60_demo.gif" width="544" alt="Animación: pour-over de V60 en la pantalla, con bloom, tres vertidos, aviso de guardado, gráfica y ficha BLOOM+3">
+
+*Receta de ejemplo: 15 g de café y 250 g de agua, bloom de 45 g con 30 s de espera y tres vertidos. El peso es simulado (se inyecta en el aparato en lugar del de la Dot), pero todo lo demás es el firmware real funcionando.*
+
+Capturas fijas de la pantalla, sacadas de la memoria del aparato:
 
 | Pantalla principal | Pour-over guardado |
 | :---: | :---: |

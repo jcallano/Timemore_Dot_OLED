@@ -323,6 +323,9 @@ void handleSerialCommands() {
     } else if (c == 'd' || c == 'D') {
       // Pour-over de demostración (solo RAM) y su banner de guardado
       injectDemoPourOver();
+    } else if (c == 'v' || c == 'V') {
+      // Demostración en vivo de un V60 (2:45 en tiempo real), para grabar la pantalla
+      startDemoLivePour();
     } else if (c >= '0' && c <= '3') {
       uiState = UiState::Main;
       currentScreenView = static_cast<uint8_t>(c - '0');

@@ -203,7 +203,7 @@ void saveDoseToNVS() {
 bool storePourRecord(unsigned long totalElapsedMs, bool persistToNvs);
 
 bool finalizeAndSaveCurrentPourOver(unsigned long totalElapsedMs) {
-  return storePourRecord(totalElapsedMs, true);
+  return storePourRecord(totalElapsedMs, !demoLiveActive);  // la demo en vivo no se escribe en la NVS
 }
 
 // Crea el registro del Pour-Over a partir de las muestras en vivo. persistToNvs = false: solo en RAM
@@ -319,10 +319,10 @@ bool storePourRecord(unsigned long totalElapsedMs, bool persistToNvs) {
 // y pasa por el motor de caudal REAL (src/flow_engine), con el mismo muestreo a 2 Hz y la misma
 // detección de vertidos que una preparación de verdad. Solo queda en RAM (no se escribe en la NVS).
 // ----------------------------------------------------------------------------
-void injectDemoPourOver() {
-  if (psramLiveSamples == nullptr) return;
-
-  // Tramos: hasta el segundo t1, el peso va de forma lineal hasta w1 (los vertidos) o se mantiene (esperas)
+// Receta de demostración de V60: peso (g) del agua vertida en el segundo t desde el primer vertido.
+// Tramos: hasta el segundo t1 el peso va en línea recta hasta w1 (vertidos) o se mantiene (esperas).
+static constexpr float DEMO_POUR_TOTAL_SEC = 165.0f;   // 2:45
+float demoPourWeightAt(float t) {
   struct Seg { float t1; float w1; };
   static const Seg segs[] = {
     {10.0f, 45.0f},   // bloom: vertido de 45 g en 10 s
@@ -334,7 +334,21 @@ void injectDemoPourOver() {
     {120.0f, 250.0f}, // vertido 3
     {165.0f, 250.0f}, // bajada (drawdown) hasta 2:45
   };
-  const float totalSec = 165.0f;
+  if (t <= 0.0f) return 0.0f;
+  float prevT = 0.0f, prevW = 0.0f;
+  for (const Seg& s : segs) {
+    if (t <= s.t1) {
+      float w = prevW + (s.w1 - prevW) * ((t - prevT) / (s.t1 - prevT));
+      return roundf(w * 10.0f) / 10.0f;  // resolución de la Dot (0.1 g)
+    }
+    prevT = s.t1; prevW = s.w1;
+  }
+  return prevW;
+}
+
+void injectDemoPourOver() {
+  if (psramLiveSamples == nullptr) return;
+  const float totalSec = DEMO_POUR_TOTAL_SEC;
 
   FlowEngine fe;
   fe.reset(0.0f);
@@ -344,18 +358,11 @@ void injectDemoPourOver() {
   resetLivePourRecording();
 
   const unsigned long base = 1000UL;
-  float prevT = 0.0f, prevW = 0.0f;
-  uint8_t seg = 0;
   float peak = 0.0f;
   uint8_t pulses = 0;
   bool pouring = false;
   for (unsigned long ms = 0; ms <= (unsigned long)(totalSec * 1000.0f); ms += 100UL) {
-    float t = ms / 1000.0f;
-    while (seg < sizeof(segs) / sizeof(segs[0]) - 1 && t > segs[seg].t1) {
-      prevT = segs[seg].t1; prevW = segs[seg].w1; seg++;
-    }
-    float w = prevW + (segs[seg].w1 - prevW) * ((t - prevT) / (segs[seg].t1 - prevT));
-    w = roundf(w * 10.0f) / 10.0f;  // resolución de la Dot
+    float w = demoPourWeightAt(ms / 1000.0f);
     fe.addSample(base + ms, w, true);
     float flow = fe.currentGps;
     if (flow > peak) peak = flow;
@@ -375,4 +382,77 @@ void injectDemoPourOver() {
   nextPourSequenceId = savedNext;   // el siguiente pour-over real conserva su número
   resetLivePourRecording();
   uiNeedsImmediateRedraw = true;
+}
+
+// ----------------------------------------------------------------------------
+// DEMOSTRACIÓN EN VIVO DE UN V60 (orden serie 'v'), para grabar la pantalla en movimiento.
+// Hace lo mismo que una persona: 2 clics (tara y Auto-Brew armado), vierte la receta de
+// demoPourWeightAt() en tiempo real (2:45) y 1 clic al final (para y guarda). El peso simulado entra en
+// la cola de muestras a 10 Hz, como el de la Dot, y recorre el mismo camino: motor de caudal, Auto-Brew,
+// muestreo a 2 Hz, detección del bloom y pantalla. Mientras dura se ignora el peso de la Dot, y el
+// pour-over resultante se guarda solo en RAM. Al terminar se restauran la dosis, el Auto-Brew y el
+// número del siguiente pour-over.
+// ----------------------------------------------------------------------------
+// Definidas en pestañas posteriores (60_power, 85_controles)
+void registerUserOrScaleActivity();
+void tareAndResetStopwatch();
+void startOrStopStopwatch();
+
+static constexpr float DEMO_LEAD_SEC  = 3.0f;   // pantalla con TIMER(A) armado antes del primer vertido
+static constexpr float DEMO_TAIL_SEC  = 4.0f;   // tras el clic final: aviso de guardado
+static unsigned long demoStartMs      = 0;
+static unsigned long demoLastSampleMs = 0;
+static float demoBaseGross            = 0.0f;
+static float demoSavedDose            = 0.0f;
+static bool demoSavedAutoTimer        = true;
+static uint16_t demoSavedNextId       = 1;
+static bool demoClickedStop           = false;
+
+void startDemoLivePour() {
+  if (demoLiveActive) return;
+  demoSavedDose      = coffeeDoseGrams;
+  demoSavedAutoTimer = autoTimerEnabled;
+  demoSavedNextId    = nextPourSequenceId;
+  coffeeDoseGrams    = 15.0f;
+  autoTimerEnabled   = true;
+  demoBaseGross      = rawWeightGrams;   // dripper y jarra ya sobre la báscula
+  uiState            = UiState::Main;
+  currentScreenView  = 0;
+  pourSavedBannerUntilMs = 0;
+  demoClickedStop    = false;
+  if (weightQueue != nullptr) xQueueReset(weightQueue);
+  demoLiveActive     = true;
+  tareAndResetStopwatch();               // "2 clics": tara + Auto-Brew armado
+  demoStartMs        = millis();
+  demoLastSampleMs   = 0;
+  registerUserOrScaleActivity();
+  Serial.println("[DEMO] V60 en vivo: 15 g / 250 g, bloom de 30 s y 3 vertidos (2:45).");
+}
+
+void serviceDemoLivePour() {
+  if (!demoLiveActive) return;
+  unsigned long now = millis();
+  if (demoLastSampleMs != 0 && (now - demoLastSampleMs) < 100UL) return;
+  demoLastSampleMs = now;
+
+  const float t = (now - demoStartMs) / 1000.0f - DEMO_LEAD_SEC;   // segundos desde el primer vertido
+  WeightSample s;
+  s.ms     = now;
+  s.grams  = demoBaseGross + demoPourWeightAt(t);
+  s.stable = true;
+  if (weightQueue != nullptr) xQueueSend(weightQueue, &s, 0);
+  registerUserOrScaleActivity();
+
+  if (!demoClickedStop && t >= DEMO_POUR_TOTAL_SEC) {
+    demoClickedStop = true;
+    if (timerRunning) startOrStopStopwatch();   // "1 clic": para el cronómetro y guarda (en RAM)
+  }
+  if (t >= DEMO_POUR_TOTAL_SEC + DEMO_TAIL_SEC) {
+    demoLiveActive     = false;
+    coffeeDoseGrams    = demoSavedDose;
+    autoTimerEnabled   = demoSavedAutoTimer;
+    autoTimerArmed     = false;
+    nextPourSequenceId = demoSavedNextId;
+    Serial.println("[DEMO] Fin de la demostracion.");
+  }
 }

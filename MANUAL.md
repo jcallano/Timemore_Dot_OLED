@@ -77,7 +77,9 @@ El cronómetro puede arrancar y parar solo. Activa o desactiva esta función en 
    - o, con Auto-Brew, **retira el dripper o la jarra**: si el peso se queda 5 s por debajo del 70 % del máximo, el cronómetro se para en el momento de la caída y se guarda. El bloom y las pausas entre vertidos no lo disparan.
 5. Aparece `POUR #N GUARDADO!` con el peso final, el ratio y el tiempo.
 
-<img src="docs/img/pantallas/01_pour_guardado.png" width="340" alt="Aviso POUR #22 GUARDADO con peso 250 g, ratio 1:16.7, dosis 15 g y 165 s">
+<img src="docs/img/v60_demo.gif" width="544" alt="Animación de un V60: arranque automático del cronómetro, bloom, tres vertidos, aviso de guardado, gráfica y ficha">
+
+*Un V60 de principio a fin en la pantalla del aparato, acelerado 10 veces.*
 
 Sin Auto-Brew, el cronómetro se maneja a mano: 1 clic para iniciar y 1 clic para parar y guardar. Si reanudas y vuelves a parar, se actualiza la misma preparación.
 

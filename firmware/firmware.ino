@@ -466,6 +466,10 @@ uint8_t savedPoursCount                  = 0;
 uint16_t nextPourSequenceId              = 1;
 uint16_t activeRecordingPourId           = 0;     // pourId ya guardado de la grabación en curso (0 = aún no guardada)
 
+// Demostración en vivo de un V60 (orden serie 'v'): loop() inyecta el peso simulado en la cola de muestras
+// y se ignora el de la Dot. El pour-over resultante se guarda solo en RAM.
+volatile bool demoLiveActive             = false;
+
 // Estado del Visor Interactivo de Pour-Overs en la OLED (activo con uiState == UiState::PourViewer)
 bool pourViewerShowStatsPage             = false; // false = Gráfica Peso+Flow+Ratio, true = Ficha Técnica
 int8_t selectedPourSlot                  = 0;

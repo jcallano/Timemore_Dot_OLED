@@ -133,7 +133,7 @@ void timemoreNotifyCallback(NimBLERemoteCharacteristic* pRemoteCharacteristic,
   // El callback corre en la tarea host de NimBLE (núcleo 0) y loop() en el núcleo 1. Antes el motor de
   // caudal, la tara y el auto-timer modificaban el mismo estado desde ambos núcleos sin sincronización.
   // Ahora el callback SOLO parsea y encola la muestra con su marca de tiempo; loop() la procesa.
-  if (pr.hasWeight) {
+  if (pr.hasWeight && !demoLiveActive) {   // durante la demo en vivo manda el peso simulado
     // Puente BooKoo: la trama a la máquina sale ya desde la tarea bookooTx, sin pasar por loop()
     if (bookooBridgeEnabled) bookooOnScaleSample(pr.grams);
 
