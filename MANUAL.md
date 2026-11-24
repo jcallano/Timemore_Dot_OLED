@@ -89,13 +89,14 @@ Sin Auto-Brew, el cronómetro se maneja a mano: 1 clic para iniciar y 1 clic par
 - **1 clic** alterna entre:
   - la **gráfica**: línea del peso acumulado y barras de caudal, con la dosis y el número de vertidos;
   - la **ficha**: agua, dosis y ratio, caudal medio y máximo, y número de vertidos.
+- Si el primer vertido es pequeño (hasta un tercio del total) y le sigue una espera de 15 s o más, el aparato lo reconoce como **bloom**: la ficha indica `BLOOM+3` (bloom y tres vertidos) y la gráfica `B+3`. Si no, indica solo el número de vertidos (`VERTIDOS:4`, `4V`).
 - **2 o 3 clics** para salir.
 
 | Gráfica | Ficha |
 | :---: | :---: |
-| <img src="docs/img/pantallas/02_historial_grafica.png" width="340" alt="Gráfica del pour-over: peso acumulado en escalones y barras de caudal de cada vertido"> | <img src="docs/img/pantallas/03_historial_ficha.png" width="340" alt="Ficha: 250 g, dosis 15 g, ratio 1:16.7, caudal medio 1.5 y máximo 4.5 g/s, 4 vertidos"> |
+| <img src="docs/img/pantallas/02_historial_grafica.png" width="340" alt="Gráfica del pour-over: peso acumulado en escalones y barras de caudal de cada vertido"> | <img src="docs/img/pantallas/03_historial_ficha.png" width="340" alt="Ficha: 250 g, dosis 15 g, ratio 1:16.7, caudal medio 1.5 y máximo 4.5 g/s, bloom y 3 vertidos"> |
 
-*Ejemplo: 15 g de café y 250 g de agua (1:16,7) en 2:45, con un bloom de 45 g y 30 s de espera, y tres vertidos hasta 120, 190 y 250 g. En la gráfica, la línea es el peso acumulado y las barras, el caudal de cada vertido. El bloom cuenta como un vertido, por eso indica 4.*
+*Ejemplo: 15 g de café y 250 g de agua (1:16,7) en 2:45, con un bloom de 45 g y 30 s de espera, y tres vertidos hasta 120, 190 y 250 g. En la gráfica, la línea es el peso acumulado y las barras, el caudal de cada vertido. El aparato reconoce el bloom y lo indica como `BLOOM+3`.*
 
 ### 3.4 Puente con la Wendougee
 

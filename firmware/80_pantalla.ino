@@ -63,11 +63,14 @@ void renderPourOverViewerOled() {
       }
     }
 
-    // Pie de gráfica: Dosis, número de vertidos e índice (ej. "D:15.0G 4V [1/3] CLK:DAT")
+    // Pie de gráfica: dosis, vertidos (B+n = bloom + n vertidos) e índice. Máximo 21 caracteres (128 px):
+    // "15.0G B+3 10/10 +INFO". Antes "D:15.0G 4V [10/10] +INFO" (24) se cortaba.
     char foot[32];
-    // Máximo 21 caracteres (128 px): "D:15.0 4V 10/10 +INFO". Antes "D:15.0G 4V [10/10] +INFO" (24) se cortaba.
-    snprintf(foot, sizeof(foot), "D:%.1f %uV %d/%u +INFO",
-             rec.doseGrams, rec.poursCount, selectedPourSlot + 1, savedPoursCount);
+    char pours[8];
+    if (rec.hasBloom) snprintf(pours, sizeof(pours), "B+%u", (unsigned)(rec.poursCount - 1));
+    else              snprintf(pours, sizeof(pours), "%uV", (unsigned)rec.poursCount);
+    snprintf(foot, sizeof(foot), "%.1fG %s %d/%u +INFO",
+             rec.doseGrams, pours, selectedPourSlot + 1, savedPoursCount);
     oledDrawText(0, 56, foot, 1);
 
   } else {
@@ -76,7 +79,9 @@ void renderPourOverViewerOled() {
     snprintf(line1, sizeof(line1), "AGUA/BEBIDA: %5.1f G", rec.finalWeightGrams);
     snprintf(line2, sizeof(line2), "DOSIS:%4.1fG -> 1:%4.1f", rec.doseGrams, rec.finalRatio);
     snprintf(line3, sizeof(line3), "FLOW MED:%3.1f MAX:%3.1f", rec.avgFlowGps, rec.peakFlowGps);
-    snprintf(line4, sizeof(line4), "VERTIDOS:%u 3CLK=SALIR", rec.poursCount); // <= 21 caracteres (128 px)
+    // <= 21 caracteres (128 px)
+    if (rec.hasBloom) snprintf(line4, sizeof(line4), "BLOOM+%u 3CLK=SALIR", (unsigned)(rec.poursCount - 1));
+    else              snprintf(line4, sizeof(line4), "VERTIDOS:%u 3CLK=SALIR", (unsigned)rec.poursCount);
 
     oledDrawText(2, 15, line1, 1);
     oledDrawText(2, 27, line2, 1);

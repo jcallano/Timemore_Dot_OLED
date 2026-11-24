@@ -443,7 +443,12 @@ struct PourOverRecord {
   uint8_t poursCount;                  // Número de vertidos/pulsos detectados
   uint8_t weightCurve[POUR_GRAPH_POINTS]; // Curva de peso normalizada (0..40 px)
   uint8_t flowCurve[POUR_GRAPH_POINTS];   // Curva de caudal normalizada (0..40 px)
+  // 1 = el primer vertido fue un bloom (poursCount lo incluye: se muestra "BLOOM+<poursCount-1>").
+  // Ocupa un byte del relleno final: sizeof no cambia (272) y los registros antiguos de la NVS, que se
+  // guardaron con memset a 0, se leen como "sin bloom".
+  uint8_t hasBloom;
 };
+static_assert(sizeof(PourOverRecord) == 272, "PourOverRecord cambió de tamaño: invalidaría el historial guardado en la NVS");
 
 // Punteros alojados dinámicamente en PSRAM (con fallback automático a SRAM si PSRAM está deshabilitada)
 LivePourSample* psramLiveSamples         = nullptr;

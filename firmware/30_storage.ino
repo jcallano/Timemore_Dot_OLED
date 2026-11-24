@@ -252,6 +252,24 @@ bool storePourRecord(unsigned long totalElapsedMs, bool persistToNvs) {
   rec.peakFlowGps      = peakFlowRateGps;
   rec.poursCount       = (currentPourPulsesCount > 0) ? currentPourPulsesCount : 1;
 
+  // Bloom: el primer vertido es pequeño (<= 35 % del total) y le sigue una espera de 15 s o más antes
+  // del siguiente. Se busca en las muestras a 2 Hz con los mismos umbrales que el contador de vertidos
+  // (empieza con >= 0.8 g/s, termina con <= 0.25 g/s).
+  if (rec.poursCount >= 2) {
+    uint16_t i = 0;
+    while (i < liveSampleCount && psramLiveSamples[i].flowGps < 0.8f) i++;    // empieza el 1.er vertido
+    while (i < liveSampleCount && psramLiveSamples[i].flowGps > 0.25f) i++;   // termina
+    if (i < liveSampleCount) {
+      const float firstPourW = psramLiveSamples[i].weightGrams;
+      uint16_t j = i;
+      while (j < liveSampleCount && psramLiveSamples[j].flowGps < 0.8f) j++;  // empieza el 2.º
+      const float pauseSec = (j - i) * 0.5f;
+      if (j < liveSampleCount && pauseSec >= 15.0f && firstPourW > 0.0f && firstPourW <= 0.35f * finalW) {
+        rec.hasBloom = 1;
+      }
+    }
+  }
+
   // Normalizar las N muestras de PSRAM a las 120 columnas de la pantalla OLED (altura 0..38 px)
   float maxW = (finalW > 10.0f) ? finalW : 10.0f;
   float maxF = (peakFlowRateGps > 2.0f) ? peakFlowRateGps : 5.0f;
@@ -287,9 +305,10 @@ bool storePourRecord(unsigned long totalElapsedMs, bool persistToNvs) {
   lastSavedPourId        = rec.pourId;
   pourSavedBannerUntilMs = millis() + 2200UL;
 
-  Serial.printf("[POUR-SAVE] Pour-Over #%u guardado en %s: Peso=%.1fg | Dosis=%.1fg | Ratio=1:%.1f | Tiempo=%us | Vertidos=%u\n",
+  Serial.printf("[POUR-SAVE] Pour-Over #%u guardado en %s: Peso=%.1fg | Dosis=%.1fg | Ratio=1:%.1f | Tiempo=%us | Vertidos=%s%u\n",
                 rec.pourId, persistToNvs ? "PSRAM+NVS" : "RAM (demo)", rec.finalWeightGrams, rec.doseGrams,
-                rec.finalRatio, rec.durationSec, rec.poursCount);
+                rec.finalRatio, rec.durationSec, rec.hasBloom ? "bloom+" : "",
+                rec.hasBloom ? rec.poursCount - 1 : rec.poursCount);
   return true;
 }
 
