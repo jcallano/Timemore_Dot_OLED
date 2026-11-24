@@ -1,10 +1,32 @@
-# Monitor Barista OLED y registro de pour-overs para la Timemore Black Mirror Dot
+# Timemore Black Mirror Dot con pantalla, botones y conexión a la cafetera Wendougee
 
-La **Timemore Black Mirror Dot** es una báscula muy fina y precisa, pero no tiene pantalla de flujo ni botones de cronómetro: todo pasa por la app del móvil. Este proyecto es un **pequeño dispositivo que se pone al lado de la báscula y le da la pantalla y los controles que le faltan**. Conecta con la Dot por Bluetooth y muestra el peso, el caudal (g/s), el ratio 1:X y el cronómetro. Se maneja con un encoder giratorio y guarda las curvas de cada pour-over.
+La **Timemore Black Mirror Dot** es una báscula muy fina y precisa, pero no tiene pantalla de flujo ni botones de cronómetro: todo pasa por la app del móvil. Y las cafeteras **Wendougee** no la reconocen como báscula inteligente. Este proyecto es un **pequeño dispositivo abierto (ESP32-S3) que resuelve las dos cosas**:
 
-Además, hace de **puente para usar la Dot con una cafetera Wendougee** (Lita / Data-S con E-Bar o GeeFlow). Esas máquinas solo aceptan básculas BooKoo, así que el dispositivo se presenta ante ellas como una BooKoo Themis Ultra y les reenvía el peso de la Dot en tiempo real (ver la sección 3.9).
+1. **Le da a la Dot la pantalla y los botones que no trae.** Muestra el peso, el caudal (g/s), el ratio 1:X y el cronómetro, se maneja con un encoder giratorio y guarda las curvas de cada pour-over.
+2. **Permite usar la Timemore Dot con una cafetera Wendougee** (Lita, Data-S, con E-Bar o GeeFlow) para hacer el espresso por peso.
 
 Funciona sobre una **WeAct Studio ESP32-S3-A** (`ESP32-S3R8`, 8 MB de flash y 8 MB de PSRAM), con una OLED de 2.42" y una caja imprimible en 3D.
+
+## ¿Se puede usar la Timemore Dot con la Wendougee?
+
+**Sí, con este dispositivo.** Las Wendougee Lita y Data-S (con E-Bar o GeeFlow) solo aceptan básculas **BooKoo** en su función *Smart Scale*, y la Timemore Black Mirror Dot no aparece en su lista. El dispositivo hace de puente Bluetooth:
+
+```text
+Timemore Dot --(peso, 10 Hz)--> puente ESP32-S3 --(protocolo BooKoo)--> Wendougee
+                                puente ESP32-S3 <--(tara, cronómetro)-- Wendougee
+```
+
+- Se conecta a la Dot y, a la vez, se anuncia ante la cafetera como una báscula **BooKoo Themis Ultra** (`BOOKOO_SC_U XXXXXX`).
+- Reenvía cada lectura de la Dot en cuanto llega, con el caudal calculado, para que la máquina pueda **parar el shot por peso objetivo**.
+- Obedece los comandos de la cafetera: tara al empezar el shot, inicio, parada y reinicio del cronómetro.
+- Mientras tanto, la pantalla muestra el peso, el estado de los dos enlaces y el **rebase** (lo que sigue cayendo en la taza después de que la máquina pare), útil para ajustar el peso objetivo.
+- El retraso del peso no crece con el tiempo: el firmware mantiene vacía la cola de salida de la Dot (ver [`COLA_DOT_MTU.md`](./COLA_DOT_MTU.md)).
+
+Para activarlo: en el dispositivo, *Menú → 5. Puente BooKoo: ON*. En la cafetera, *Machine Settings → Connectivity → Smart Scale → ON → Scan* y elige `BOOKOO_SC_U XXXXXX`. Detalles en la sección [3.9](#39-puente-con-la-wendougee-bookoo) y en el [manual](./MANUAL.md#34-puente-con-la-wendougee).
+
+## In English
+
+**Use a Timemore Black Mirror Dot scale with a Wendougee espresso machine.** Wendougee Lita / Data-S machines (E-Bar, GeeFlow) only accept BooKoo smart scales. This open-source ESP32-S3 device connects to the Timemore Dot over Bluetooth LE and emulates a **BooKoo Themis Ultra**, so the machine can read the Dot's weight and flow in real time and stop the shot by target weight. It also gives the Dot what it lacks on its own: an OLED display with weight, flow rate (g/s), brew ratio and timer, a rotary-encoder control, auto-start/stop timer and a pour-over history. Firmware for Arduino (NimBLE-Arduino 2.x), 3D-printable enclosure included. Documentation is in Spanish.
 
 - **Manual de uso** (controles, modos y puente con la Wendougee): [`MANUAL.md`](./MANUAL.md).
 - Firmware: pestaña principal [`basicoledtimemore_dot.ino`](./basicoledtimemore_dot.ino), más pestañas y módulos (ver la sección 4).
