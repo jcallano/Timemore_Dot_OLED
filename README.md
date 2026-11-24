@@ -167,3 +167,13 @@ Cada 5 s se imprime `[STATUS]` con la conexión, el peso, el caudal, las baterí
 | `partitions.csv` | Tabla de particiones de 8 MB |
 
 El IDE de Arduino concatena las pestañas `.ino` detrás de la principal en orden alfabético, de ahí los prefijos numéricos. Los módulos de `src/` no dependen de Arduino ni de variables globales, así que se pueden probar con tramas o vertidos simulados (el autotest los ejecuta en la propia placa).
+
+---
+
+## 5. Licencia
+
+[Creative Commons Reconocimiento 3.0 Unported (CC BY 3.0)](https://creativecommons.org/licenses/by/3.0/). Puedes usar, modificar y redistribuir el firmware, la documentación y la caja, incluso con fines comerciales, siempre que **cites la fuente**:
+
+> Basado en "Timemore_Dot_OLED" de jcallano (https://github.com/jcallano/Timemore_Dot_OLED), licencia CC BY 3.0.
+
+La cita debe ir en el código derivado (por ejemplo, en un comentario de cabecera) y en su documentación, indicando si hiciste cambios. Los modelos 3D de terceros de `cad/ref_*` no están incluidos ni cubiertos por esta licencia. Texto completo en [`LICENSE`](./LICENSE).
