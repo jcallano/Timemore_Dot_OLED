@@ -41,8 +41,20 @@ void tareAndResetStopwatch() {
   autoTimerArmed         = autoTimerEnabled;
   resetLivePourRecording();
   pendingScaleTare       = false;
+  espressoCancelShot();  // espresso: cancela el shot y arma el arranque con la primera gota
   executeTimemoreTare(); // Ejecutar TARA por Software (0 ms) sin activar el Zero-Lock interno de la Dot
   Serial.println("[BOTON] 2-Clicks: TARA Instantanea (0.0g) + Cronometro REINICIADO a 0.0s.");
+}
+
+// Historial que muestra el visor: shots o pour-overs
+static uint8_t viewerCount() { return viewerShowsShots ? savedShotsCount : savedPoursCount; }
+static int8_t& viewerSlot()   { return viewerShowsShots ? selectedShotSlot : selectedPourSlot; }
+
+// Al salir de la edición de un valor del menú, guardarlo en la NVS
+static void commitMenuEdit() {
+  if (uiState != UiState::MenuEdit) return;
+  if (menuEditItem == MI_DOSE && brewMode == BrewMode::PourOver) saveDoseToNVS();
+  else saveEspressoSettings();
 }
 
 void executeButtonMultiClickAction(uint8_t clicks) {
@@ -50,14 +62,14 @@ void executeButtonMultiClickAction(uint8_t clicks) {
   uiNeedsImmediateRedraw = true;
   registerUserOrScaleActivity();
 
-  const bool inMenu = (uiState == UiState::Menu || uiState == UiState::MenuEditDose);
+  const bool inMenu = (uiState == UiState::Menu || uiState == UiState::MenuEdit);
 
-  // 3 CLICKS: Abrir / Cerrar Menú (o salir del visor de Pour-Over)
+  // 3 CLICKS: Abrir / Cerrar Menú (o salir del visor del historial)
   if (clicks >= 3) {
     if (uiState == UiState::PourViewer) {
       uiState = UiState::Main;
     } else if (inMenu) {
-      if (uiState == UiState::MenuEditDose) saveDoseToNVS();
+      commitMenuEdit();
       uiState = UiState::Main;
     } else {
       uiState = UiState::Menu;
@@ -70,7 +82,7 @@ void executeButtonMultiClickAction(uint8_t clicks) {
   // 2 CLICKS: En pantalla principal -> TARA + Reset Cronómetro; en Menú/Visor -> Salir a pantalla principal
   if (clicks == 2) {
     if (uiState != UiState::Main) {
-      if (uiState == UiState::MenuEditDose) saveDoseToNVS();
+      commitMenuEdit();
       uiState = UiState::Main;
       triggerLedFlash();
     } else {
@@ -79,65 +91,75 @@ void executeButtonMultiClickAction(uint8_t clicks) {
     return;
   }
 
-  // 1 CLICK: En pantalla principal -> Cronómetro Start/Stop; en Menú -> Confirmar opción; en Visor -> Cambiar página
+  // 1 CLICK: En pantalla principal -> Cronómetro / shot; en Menú -> Confirmar opción; en Visor -> Cambiar página
   if (clicks == 1) {
     if (uiState == UiState::PourViewer) {
-      if (savedPoursCount == 0) {
+      if (viewerCount() == 0) {
         uiState = UiState::Main;
       } else {
-        // 1 Click dentro del visor de Pour-Over: alternar entre GRÁFICA y FICHA DE DATOS
+        // 1 Click dentro del visor: alternar entre GRÁFICA y FICHA DE DATOS
         pourViewerShowStatsPage = !pourViewerShowStatsPage;
       }
     } else if (inMenu) {
-      // Ejecutar opción seleccionada del menú
-      switch (menuSelectedIndex) {
-        case 0: // ABRIR HISTORIAL Y GRÁFICAS DE POUR-OVERS EN PSRAM
-          uiState                 = UiState::PourViewer;
-          pourViewerShowStatsPage = false;
-          if (savedPoursCount > 0) {
-            selectedPourSlot = static_cast<int8_t>(savedPoursCount - 1);
-          }
+      uint8_t ids[MENU_MAX_ITEMS];
+      const uint8_t n = buildMenuItems(ids);
+      if (menuSelectedIndex >= n) menuSelectedIndex = 0;
+      const uint8_t item = ids[menuSelectedIndex];
+      switch (item) {
+        case MI_MODE:
+          setBrewMode(brewMode == BrewMode::Espresso ? BrewMode::PourOver : BrewMode::Espresso);
+          menuSelectedIndex = 0;   // las opciones cambian con el modo
           break;
-        case 1: // AUTO-TIMER ON/OFF
+        case MI_HISTORY:   // historial del modo actual
+          uiState                 = UiState::PourViewer;
+          viewerShowsShots        = (brewMode == BrewMode::Espresso);
+          pourViewerShowStatsPage = false;
+          if (viewerCount() > 0) viewerSlot() = static_cast<int8_t>(viewerCount() - 1);
+          break;
+        case MI_AUTOTIMER:
           autoTimerEnabled = !autoTimerEnabled;
           autoTimerArmed   = autoTimerEnabled;
           break;
-        case 2: // EDITAR DOSIS DE CAFÉ (entrar / confirmar y guardar en NVS)
-          if (uiState == UiState::MenuEditDose) {
-            saveDoseToNVS();
+        case MI_DOSE:          // valores editables: 1 clic entra, girar ajusta, 1 clic guarda
+        case MI_RATIO:
+        case MI_TARGET_TIME:
+          if (uiState == UiState::MenuEdit) {
+            commitMenuEdit();
             uiState = UiState::Menu;
           } else {
-            uiState = UiState::MenuEditDose;
+            menuEditItem = item;
+            uiState = UiState::MenuEdit;
           }
           break;
-        case 3: // BRILLO OLED
+        case MI_BRIGHT:
           oledBrightnessLevel = (oledBrightnessLevel + 1) % 3;
           oledSetContrast(getActiveOledContrast());
           break;
-        case 4: // PUENTE BOOKOO ON/OFF (reinicia la pila BLE: la Dot se reconecta en ~2 s)
+        case MI_BRIDGE:        // reinicia la pila BLE: la Dot se reconecta en ~2 s
           setBookooBridgeEnabled(!bookooBridgeEnabled);
           break;
-        case 5: // RE-VINCULAR TIMEMORE DOT (Borrar NVS)
+        case MI_RELINK:        // olvidar la Dot (borra la NVS de la báscula)
           uiState = UiState::Main;
           clearScaleFromNVS();
           break;
-        case 6: // ACTUALIZAR FIRMWARE POR BLUETOOTH (página Web Bluetooth de docs/ota, PIN en pantalla)
+        case MI_UPDATE:        // actualización por Bluetooth (página Web Bluetooth de docs/ota, PIN en pantalla)
           uiState = UiState::Main;
           enterBleOtaMode();
           break;
-        case 7: // APAGAR (reposo)
+        case MI_SLEEP:
           uiState = UiState::Main;
           enterDeepSleepMode("APAGADO MANUAL");
           break;
-        case 8: // SALIR
+        case MI_EXIT:
         default:
-          if (uiState == UiState::MenuEditDose) saveDoseToNVS();
+          commitMenuEdit();
           uiState = UiState::Main;
           break;
       }
+    } else if (brewMode == BrewMode::Espresso) {
+      espressoClick();         // shot: arranca / corta
     } else {
-      // En pantalla principal: 1 Click = Cronómetro Start / Stop
-      startOrStopStopwatch();
+      startOrStopStopwatch();  // pour-over: cronómetro start / stop
     }
   }
 }
@@ -167,20 +189,31 @@ void handleRotaryEncoder() {
     registerUserOrScaleActivity();
 
     if (uiState == UiState::PourViewer) {
-      if (savedPoursCount > 0) {
-        selectedPourSlot = static_cast<int8_t>(selectedPourSlot + (delta > 0 ? 1 : -1));
-        while (selectedPourSlot < 0) selectedPourSlot += savedPoursCount;
-        while (selectedPourSlot >= savedPoursCount) selectedPourSlot -= savedPoursCount;
+      const uint8_t n = viewerCount();
+      if (n > 0) {
+        int8_t& slot = viewerSlot();
+        slot = static_cast<int8_t>(slot + (delta > 0 ? 1 : -1));
+        while (slot < 0) slot += n;
+        while (slot >= n) slot -= n;
       }
-    } else if (uiState == UiState::MenuEditDose) {
-      coffeeDoseGrams += static_cast<float>(delta) * 0.5f;
-      if (coffeeDoseGrams < DOSE_MIN_G) coffeeDoseGrams = DOSE_MIN_G;
-      if (coffeeDoseGrams > DOSE_MAX_G) coffeeDoseGrams = DOSE_MAX_G;
-      Serial.printf("[ENCODER] Dosis de cafe ajustada: %.1f g\n", coffeeDoseGrams);
+    } else if (uiState == UiState::MenuEdit) {
+      const float d = static_cast<float>(delta);
+      if (menuEditItem == MI_DOSE && brewMode == BrewMode::PourOver) {
+        coffeeDoseGrams = constrain(coffeeDoseGrams + d * 0.5f, DOSE_MIN_G, DOSE_MAX_G);
+      } else if (menuEditItem == MI_DOSE) {
+        espDoseGrams = constrain(roundf((espDoseGrams + d * 0.1f) * 10.0f) / 10.0f, ESP_DOSE_MIN_G, ESP_DOSE_MAX_G);
+      } else if (menuEditItem == MI_RATIO) {
+        espRatio = constrain(roundf((espRatio + d * 0.1f) * 10.0f) / 10.0f, ESP_RATIO_MIN, ESP_RATIO_MAX);
+      } else if (menuEditItem == MI_TARGET_TIME) {
+        espTargetSec = static_cast<uint8_t>(constrain(static_cast<int>(espTargetSec) + static_cast<int>(delta),
+                                                      static_cast<int>(ESP_TIME_MIN_S), static_cast<int>(ESP_TIME_MAX_S)));
+      }
     } else if (uiState == UiState::Menu) {
+      uint8_t ids[MENU_MAX_ITEMS];
+      const int8_t n = static_cast<int8_t>(buildMenuItems(ids));
       menuSelectedIndex = static_cast<int8_t>(menuSelectedIndex + delta);
-      while (menuSelectedIndex < 0) menuSelectedIndex += MENU_ITEMS_COUNT;
-      while (menuSelectedIndex >= MENU_ITEMS_COUNT) menuSelectedIndex -= MENU_ITEMS_COUNT;
+      while (menuSelectedIndex < 0) menuSelectedIndex += n;
+      while (menuSelectedIndex >= n) menuSelectedIndex -= n;
     } else {
       // En pantalla principal: girar cambia entre las 4 vistas (todas con el PESO como protagonista) y,
       // con la máquina conectada por el puente, una 5ª vista de diagnóstico del puente
@@ -323,6 +356,13 @@ void handleSerialCommands() {
     } else if (c == 'd' || c == 'D') {
       // Pour-over de demostración (solo RAM) y su banner de guardado
       injectDemoPourOver();
+    } else if (c == 'k' || c == 'K') {
+      // Cambiar de modo (pour-over <-> espresso), como Menú -> 1. Modo
+      setBrewMode(brewMode == BrewMode::Espresso ? BrewMode::PourOver : BrewMode::Espresso);
+      uiNeedsImmediateRedraw = true;
+    } else if (c == 'e' || c == 'E') {
+      // Demostración en vivo de un espresso con la receta actual
+      startDemoEspresso();
     } else if (c == 'v' || c == 'V') {
       // Demostración en vivo de un V60 (2:45 en tiempo real), para grabar la pantalla
       startDemoLivePour();
@@ -334,8 +374,9 @@ void handleSerialCommands() {
     } else if (c == 'g' || c == 'G' || c == 'i' || c == 'I') {
       // Visor del historial en el último pour-over: 'g' gráfica, 'i' ficha
       uiState = UiState::PourViewer;
+      viewerShowsShots = (brewMode == BrewMode::Espresso);
       pourViewerShowStatsPage = (c == 'i' || c == 'I');
-      if (savedPoursCount > 0) selectedPourSlot = static_cast<int8_t>(savedPoursCount - 1);
+      if (viewerCount() > 0) viewerSlot() = static_cast<int8_t>(viewerCount() - 1);
       pourSavedBannerUntilMs = 0;
       uiNeedsImmediateRedraw = true;
     } else if (c == 'm' || c == 'M') {

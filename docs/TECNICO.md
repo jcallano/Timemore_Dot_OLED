@@ -93,6 +93,7 @@ Dot --(0xFFF1, 10 Hz)--> ESP32-S3 --(0x0FFE/0xFF11, trama 03 0B de 20 bytes)--> 
 - Cada peso de la Dot se reenvía en cuanto llega, desde una tarea propia en el núcleo 0 (no espera al refresco de la OLED, que tarda hasta 16 ms). Si la Dot calla, se reenvía el último peso cada 250 ms. Separación mínima entre tramas: 15 ms.
 - El caudal que se envía lo calcula el mismo motor que la OLED, alimentado en esa tarea con cada muestra según llega.
 - Comandos de la cafetera: tara `01`, inicio `04`, parada `05`, reinicio `06`, tara + inicio `07`, suavizado `08` (ignorado). La tara es por software, igual que la del display.
+- Inicio y parada arrancan y cortan un **shot** de `45_espresso.ino` en cualquier modo: se guarda en el historial de shots con la preinfusión medida desde el inicio y el goteo de los 3 s siguientes a la parada.
 - Enlace con la cafetera: 15-30 ms. Anuncio sin cafetera conectada: 60-100 ms.
 - El rebase se mide como el peso 3 s después del `STOP` menos el peso en el instante del `STOP`.
 - Protocolo en [`src/bookoo_protocol.*`](../firmware/src/bookoo_protocol.h); análisis previo en [`PLAN_PUENTE_BOOKOO.md`](./PLAN_PUENTE_BOOKOO.md).
@@ -114,6 +115,8 @@ Dot --(0xFFF1, 10 Hz)--> ESP32-S3 --(0x0FFE/0xFF11, trama 03 0B de 20 bytes)--> 
 | `0`-`3` | Vista de pesaje 0 a 3 |
 | `g` / `i` | Historial en el último pour-over: gráfica / ficha |
 | `m` | Abrir el menú |
+| `e` | **Espresso en vivo** con la receta actual: tara, clic, 7 s de preinfusión, flujo de hasta 2 g/s, clic al llegar al punto de corte y goteo. El shot se guarda solo en RAM; al acabar se restauran el modo, el número del siguiente shot y el goteo aprendido |
+| `k` | Cambiar de modo (pour-over ↔ espresso), como *Menú → Modo* |
 | `v` | **V60 en vivo**: 2 clics (tara y Auto-Brew), la misma receta que `d` vertida en tiempo real (2:45) y 1 clic al final. El peso simulado entra en la cola de muestras a 10 Hz en lugar del de la Dot y recorre todo el firmware. El resultado se guarda solo en RAM; al acabar se restauran la dosis, el Auto-Brew y el número del siguiente pour-over |
 
 **Capturas en PNG:** guarda la salida del monitor serie en un archivo (tras una o varias órdenes `s`) y ejecuta
@@ -145,7 +148,21 @@ La vinculación de la Dot solo acepta un dispositivo con servicio Timemore (`0xF
 
 ---
 
-## 7. Estructura del código
+## 7. Modo espresso por dentro
+
+- **Ciclo** (`shotPhase`): `Idle` → `Running` (1 clic, la cafetera o la primera gota) → `Settling` (3 s tras un corte manual o de la cafetera, para medir el goteo; 0,3 s si terminó solo) → guarda y vuelve a `Idle`.
+- **Primera gota**: 0,3 g netos en la taza. La preinfusión es el tiempo desde el inicio hasta ese momento; solo es válida si el shot arrancó con clic o con la cafetera.
+- **Arranque solo**: peso ≥ 0,5 g, caudal ≥ 0,3 g/s y una subida de peso posterior a la tara. Solo se arma con una tara (2 clics), para que poner la taza no lo dispare.
+- **Fin solo**: tras la primera gota, 4 s sin que el peso suba (y al menos 3 g). El cronómetro se para en el instante de la última subida. Tope de seguridad: 120 s.
+- **Punto de corte** = dosis × ratio − goteo aprendido. El goteo (`espRebaseAvgGrams`, 2 g de partida) se actualiza con una media móvil (0,7 / 0,3) en cada shot cortado a mano o por la cafetera, y se guarda en la NVS. El LED pasa a amarillo 3 g antes y a rojo en el punto de corte (no en los shots de la cafetera, que corta sola).
+- **Muestreo** a 5 Hz en el mismo búfer de PSRAM que el pour-over; el registro guarda 60 puntos de peso y caudal.
+- **`ShotRecord`** (148 bytes, `static_assert`): id, duración y preinfusión en décimas, tiempo objetivo, banderas (corte de la cafetera, fin solo, preinfusión válida), dosis, bebida, objetivo, peso al cortar y las dos curvas. Anillo de 10 en el espacio NVS `tmdot_shots` (`s_0`…`s_9`, `next_id`), como los pour-overs.
+- **Ajustes** en `tmdot_pours`: `mode`, `esp_dose`, `esp_ratio`, `esp_tsec`, `esp_reb`.
+- **Menú**: las opciones se construyen según el modo (`buildMenuItems()` con identificadores `MI_*`), así que los números cambian entre pour-over (10 opciones) y espresso (11).
+
+---
+
+## 8. Estructura del código
 
 Todo el firmware está en [`firmware/`](../firmware/); la carpeta y la pestaña principal se llaman igual porque el IDE de Arduino lo exige.
 
@@ -157,6 +174,7 @@ Todo el firmware está en [`firmware/`](../firmware/); la carpeta y la pestaña 
 | `25_led.ino` | LED RGB de estado |
 | `30_storage.ino` | NVS (báscula vinculada, dosis, anillo de pour-overs) y PSRAM |
 | `40_brew.ino` | Auto-timer, auto-stop y muestreo de la extracción |
+| `45_espresso.ino` | Modo espresso: receta, ciclo del shot (preinfusión, corte, goteo), historial de shots en la NVS y demo `e` |
 | `50_ble_scale.ino` | Bluetooth: tramas, tara, cola de muestras, vinculación, escaneo y conexión no bloqueante |
 | `55_bookoo_bridge.ino` | Puente BooKoo: servidor GATT, anuncio, envío a la cafetera y sus comandos |
 | `60_power.ino` | Batería, reposo (light sleep) y corte (deep sleep) |
@@ -176,7 +194,7 @@ El IDE de Arduino concatena las pestañas `.ino` detrás de la principal en orde
 
 ---
 
-## 8. Otros documentos
+## 9. Otros documentos
 
 | Documento | Contenido |
 | :--- | :--- |

@@ -20,11 +20,27 @@ void triggerLedFlash() {
   ledFlashUntilMs = millis() + 200;
 }
 
+float espressoCutGrams();   // 45_espresso.ino
+
 void updateStatusLed() {
   unsigned long now = millis();
   if (now < ledFlashUntilMs) {
     setRgbColor(LED_BRIGHTNESS * 2, LED_BRIGHTNESS * 2, LED_BRIGHTNESS * 2);
     return;
+  }
+
+  // Shot de espresso con receta: amarillo en los 3 g antes del punto de corte, rojo al llegar (corta ya).
+  // Con la cafetera cortando por el puente no hace falta avisar.
+  if (scaleConnected && shotPhase == ShotPhase::Running && !shotByMachine) {
+    const float cut = espressoCutGrams();
+    if (currentWeightGrams >= cut) {
+      setRgbColor(LED_BRIGHTNESS * 2, 0, 0);
+      return;
+    }
+    if (currentWeightGrams >= cut - 3.0f) {
+      setRgbColor(LED_BRIGHTNESS * 2, LED_BRIGHTNESS * 3 / 2, 0);
+      return;
+    }
   }
 
   if (scaleConnected) {

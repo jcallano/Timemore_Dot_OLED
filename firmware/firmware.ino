@@ -401,18 +401,52 @@ static constexpr uint8_t BOOKOO_SCREEN_VIEW = NUM_SCREEN_VIEWS;  // vista extra 
 // inPourOverViewer) que podían quedar en combinaciones imposibles.
 //   Main         -> vistas de pesaje (el giro cambia de vista)
 //   Menu         -> menú de ajustes (3 clics); el giro mueve el cursor
-//   MenuEditDose -> editando la dosis dentro del menú; el giro ajusta la dosis
-//   PourViewer   -> visor del historial de pour-overs
-enum class UiState : uint8_t { Main, Menu, MenuEditDose, PourViewer };
+//   MenuEdit     -> editando un valor del menú (dosis, ratio, tiempo); el giro lo ajusta
+//   PourViewer   -> visor del historial (pour-overs o shots, según viewerShowsShots)
+enum class UiState : uint8_t { Main, Menu, MenuEdit, PourViewer };
 UiState uiState                          = UiState::Main;
 
-// Menú interactivo controlado con el Encoder (se abre con 3 clics en ENC_SW)
+// Modo de preparación (Menú -> 1. Modo). Se guarda en la NVS.
+enum class BrewMode : uint8_t { PourOver = 0, Espresso = 1 };
+BrewMode brewMode                        = BrewMode::PourOver;
+
+// Menú interactivo controlado con el Encoder (se abre con 3 clics en ENC_SW). Sus opciones dependen del
+// modo: buildMenuItems() (80_pantalla.ino) rellena la lista con estos identificadores.
+enum MenuItemId : uint8_t {
+  MI_MODE, MI_HISTORY, MI_AUTOTIMER, MI_DOSE, MI_RATIO, MI_TARGET_TIME,
+  MI_BRIGHT, MI_BRIDGE, MI_RELINK, MI_UPDATE, MI_SLEEP, MI_EXIT
+};
+static constexpr uint8_t MENU_MAX_ITEMS  = 12;
 int8_t menuSelectedIndex                 = 0;
-static constexpr int8_t MENU_ITEMS_COUNT = 9;
 
 // Parámetros de barista configurables desde el Encoder
-float coffeeDoseGrams                    = 15.0f; // Dosis de café seco para Pour-Over / Espresso (Ratio 1:X)
+float coffeeDoseGrams                    = 15.0f; // Dosis de café seco del Pour-Over (ratio 1:X)
 uint8_t oledBrightnessLevel              = 2;     // 0=Bajo (0x15), 1=Medio (0x6F), 2=Alto (0xCF)
+
+// Receta de espresso (Menú en modo espresso). Peso objetivo = dosis x ratio.
+float espDoseGrams                       = 18.0f;
+float espRatio                           = 2.0f;
+uint8_t espTargetSec                     = 28;
+float espRebaseAvgGrams                  = 2.0f;  // lo que sigue cayendo tras cortar (aprendido de los shots)
+static constexpr float ESP_DOSE_MIN_G    = 5.0f;
+static constexpr float ESP_DOSE_MAX_G    = 30.0f;
+static constexpr float ESP_RATIO_MIN     = 1.0f;
+static constexpr float ESP_RATIO_MAX     = 4.0f;
+static constexpr uint8_t ESP_TIME_MIN_S  = 10;
+static constexpr uint8_t ESP_TIME_MAX_S  = 90;
+
+// Shot de espresso en curso (45_espresso.ino). También lo usan los shots que arranca la cafetera por el
+// puente BooKoo, en cualquier modo.
+enum class ShotPhase : uint8_t { Idle, Running, Settling };
+ShotPhase shotPhase                      = ShotPhase::Idle;
+unsigned long shotStartMs                = 0;     // inicio del cronómetro del shot
+unsigned long shotFirstDropMs            = 0;     // 0 = todavía no ha caído la primera gota
+bool shotPiKnown                         = false; // false: arrancó con la primera gota (sin preinfusión medible)
+float shotWeightAtStop                   = 0.0f;
+bool shotByMachine                       = false;
+bool shotAutoStopped                     = false;
+bool bannerIsShot                        = false; // el aviso de guardado es de un shot (no de un pour-over)
+bool viewerShowsShots                    = false; // el visor del historial muestra shots
 
 // Buffer circular de 64 muestras para la gráfica en vivo de Flow Rate (Vista 3)
 uint8_t flowGraphHistory[64]             = {0};

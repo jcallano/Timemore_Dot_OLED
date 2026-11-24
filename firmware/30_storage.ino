@@ -303,6 +303,7 @@ bool storePourRecord(unsigned long totalElapsedMs, bool persistToNvs) {
 
   selectedPourSlot       = static_cast<int8_t>(targetIdx);
   lastSavedPourId        = rec.pourId;
+  bannerIsShot           = false;
   pourSavedBannerUntilMs = millis() + 2200UL;
 
   Serial.printf("[POUR-SAVE] Pour-Over #%u guardado en %s: Peso=%.1fg | Dosis=%.1fg | Ratio=1:%.1f | Tiempo=%us | Vertidos=%s%u\n",
@@ -407,6 +408,7 @@ static float demoSavedDose            = 0.0f;
 static bool demoSavedAutoTimer        = true;
 static uint16_t demoSavedNextId       = 1;
 static bool demoClickedStop           = false;
+static bool demoV60Running            = false;
 
 void startDemoLivePour() {
   if (demoLiveActive) return;
@@ -422,6 +424,7 @@ void startDemoLivePour() {
   demoClickedStop    = false;
   if (weightQueue != nullptr) xQueueReset(weightQueue);
   demoLiveActive     = true;
+  demoV60Running     = true;
   tareAndResetStopwatch();               // "2 clics": tara + Auto-Brew armado
   demoStartMs        = millis();
   demoLastSampleMs   = 0;
@@ -430,7 +433,7 @@ void startDemoLivePour() {
 }
 
 void serviceDemoLivePour() {
-  if (!demoLiveActive) return;
+  if (!demoV60Running) return;
   unsigned long now = millis();
   if (demoLastSampleMs != 0 && (now - demoLastSampleMs) < 100UL) return;
   demoLastSampleMs = now;
@@ -448,6 +451,7 @@ void serviceDemoLivePour() {
     if (timerRunning) startOrStopStopwatch();   // "1 clic": para el cronómetro y guarda (en RAM)
   }
   if (t >= DEMO_POUR_TOTAL_SEC + DEMO_TAIL_SEC) {
+    demoV60Running     = false;
     demoLiveActive     = false;
     coffeeDoseGrams    = demoSavedDose;
     autoTimerEnabled   = demoSavedAutoTimer;

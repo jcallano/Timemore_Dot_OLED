@@ -26,6 +26,11 @@ void updateFlowAndAutoTimer() {
   // mientras llegan paquetes, el motor gestiona el corte en addSample().
   flowEngine.decayIfStale(nowMs, lastRx);
 
+  // Espresso (45_espresso.ino): en modo espresso, o con un shot de la cafetera en curso, manda el ciclo
+  // del shot; el auto-timer, el auto-stop y el muestreo del pour-over no actúan.
+  serviceEspressoShot(nowMs);
+  if (brewMode == BrewMode::Espresso || shotPhase != ShotPhase::Idle) return;
+
   // Lógica Auto-Timer blindada contra falsos arranques al hacer Tara:
   // Solo arranca cuando:
   // 1. Auto-Timer está habilitado en el menú y armado para esta extracción.

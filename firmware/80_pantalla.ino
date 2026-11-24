@@ -91,6 +91,56 @@ void renderPourOverViewerOled() {
   }
 }
 
+// Opción del menú que se está editando (dosis, ratio o tiempo) en UiState::MenuEdit
+uint8_t menuEditItem = MI_DOSE;
+
+// Opciones del menú según el modo. Devuelve cuántas hay.
+uint8_t buildMenuItems(uint8_t* ids) {
+  uint8_t n = 0;
+  ids[n++] = MI_MODE;
+  ids[n++] = MI_HISTORY;
+  if (brewMode == BrewMode::Espresso) {
+    ids[n++] = MI_DOSE;
+    ids[n++] = MI_RATIO;
+    ids[n++] = MI_TARGET_TIME;
+  } else {
+    ids[n++] = MI_AUTOTIMER;
+    ids[n++] = MI_DOSE;
+  }
+  ids[n++] = MI_BRIGHT;
+  ids[n++] = MI_BRIDGE;
+  ids[n++] = MI_RELINK;
+  ids[n++] = MI_UPDATE;
+  ids[n++] = MI_SLEEP;
+  ids[n++] = MI_EXIT;
+  return n;
+}
+
+// Texto de una opción con su número ("4.RATIO 1:2.0=36.0G<"). Máximo 21 caracteres (128 px).
+static void menuItemLabel(uint8_t id, uint8_t num, bool editing, char* out, size_t cap) {
+  const bool esp = (brewMode == BrewMode::Espresso);
+  const char* mark = editing ? " <" : "";
+  switch (id) {
+    case MI_MODE:        snprintf(out, cap, "%u.MODO: %s", num, esp ? "ESPRESSO" : "POUR-OVER"); break;
+    case MI_HISTORY:
+      if (esp) snprintf(out, cap, "%u.SHOTS (%u/%u)", num, savedShotsCount, MAX_SAVED_SHOTS);
+      else     snprintf(out, cap, "%u.POUR-OVERS (%u/%u)", num, savedPoursCount, MAX_SAVED_POURS);
+      break;
+    case MI_AUTOTIMER:   snprintf(out, cap, "%u.AUTO-TMR: %s", num, autoTimerEnabled ? "ON" : "OFF"); break;
+    case MI_DOSE:        snprintf(out, cap, "%u.DOSIS: %.1fG%s", num, esp ? espDoseGrams : coffeeDoseGrams, mark); break;
+    case MI_RATIO:       snprintf(out, cap, "%u.RATIO 1:%.1f=%.1fG%s", num, espRatio, espressoTargetGrams(), editing ? "<" : ""); break;
+    case MI_TARGET_TIME: snprintf(out, cap, "%u.TIEMPO: %u S%s", num, espTargetSec, mark); break;
+    case MI_BRIGHT:
+      snprintf(out, cap, "%u.BRILLO: %s", num, oledBrightnessLevel == 2 ? "ALTO" : (oledBrightnessLevel == 1 ? "MED" : "BAJO"));
+      break;
+    case MI_BRIDGE:      snprintf(out, cap, "%u.PUENTE BOOKOO: %s", num, bookooBridgeEnabled ? "ON" : "OFF"); break;
+    case MI_RELINK:      snprintf(out, cap, "%u.RE-VINCULAR DOT", num); break;
+    case MI_UPDATE:      snprintf(out, cap, "%u.ACTUALIZAR (BLE)", num); break;
+    case MI_SLEEP:       snprintf(out, cap, "%u.APAGAR (SLEEP)", num); break;
+    default:             snprintf(out, cap, "%u.SALIR A PANTALLA", num); break;
+  }
+}
+
 void renderSettingsMenuOled() {
   oledFillRect(0, 0, 128, 11, true);
   // Mostrar incluso dentro del menú el PESO en vivo en la barra superior
@@ -100,43 +150,165 @@ void renderSettingsMenuOled() {
   snprintf(hdrBuf, sizeof(hdrBuf), "MENU  PESO:%5.1fG", w);
   oledDrawText(4, 2, hdrBuf, 1, true);
 
-  char histLabel[24];
-  snprintf(histLabel, sizeof(histLabel), "1.POUR-OVERS (%u/%u)", savedPoursCount, MAX_SAVED_POURS);
+  uint8_t ids[MENU_MAX_ITEMS];
+  const int8_t n = static_cast<int8_t>(buildMenuItems(ids));
+  if (menuSelectedIndex >= n) menuSelectedIndex = 0;
 
-  const char* labels[MENU_ITEMS_COUNT] = {
-    histLabel,
-    autoTimerEnabled ? "2.AUTO-TMR: ON" : "2.AUTO-TMR: OFF",
-    "3.DOSIS:",
-    (oledBrightnessLevel == 2) ? "4.BRILLO: ALTO" : ((oledBrightnessLevel == 1) ? "4.BRILLO: MED" : "4.BRILLO: BAJO"),
-    bookooBridgeEnabled ? "5.PUENTE BOOKOO: ON" : "5.PUENTE BOOKOO: OFF",
-    "6.RE-VINCULAR DOT",
-    "7.ACTUALIZAR (BLE)",
-    "8.APAGAR (SLEEP)",
-    "9.SALIR A PANTALLA"
-  };
-
-  // Mostrar ventana deslizante de 4 elementos visibles a la vez
+  // Ventana deslizante de 4 opciones visibles a la vez
   int8_t firstVis = menuSelectedIndex - 1;
+  if (firstVis > n - 4) firstVis = n - 4;
   if (firstVis < 0) firstVis = 0;
-  if (firstVis > MENU_ITEMS_COUNT - 4) firstVis = MENU_ITEMS_COUNT - 4;
 
-  for (int8_t i = 0; i < 4; i++) {
-    int8_t itemIdx = firstVis + i;
-    int yPos = 14 + i * 12;
-    bool selected = (itemIdx == menuSelectedIndex);
+  for (int8_t i = 0; i < 4 && firstVis + i < n; i++) {
+    const int8_t itemIdx = firstVis + i;
+    const int yPos = 14 + i * 12;
+    const bool selected = (itemIdx == menuSelectedIndex);
+    if (selected) oledFillRect(0, yPos - 1, 128, 10, true);
+    char lineBuf[32];
+    menuItemLabel(ids[itemIdx], static_cast<uint8_t>(itemIdx + 1),
+                  selected && uiState == UiState::MenuEdit, lineBuf, sizeof(lineBuf));
+    oledDrawText(4, yPos, lineBuf, 1, selected);
+  }
+}
 
-    if (selected) {
-      oledFillRect(0, yPos - 1, 128, 10, true);
+// ============================================================================
+// MODO ESPRESSO: vista del shot y visor de shots
+// ============================================================================
+//   1.8G/S    18.0>36.0G 28S     caudal | receta (dosis > objetivo, tiempo objetivo)
+//     24.6 G                     peso
+//   [##########|    ]            progreso hacia el objetivo; la marca es el punto de corte
+//   1:1.37     | SHOT            ratio actual | estado
+//   PI 6.2S    | 18.4 S          preinfusión (hasta la primera gota) | cronómetro
+void renderEspressoViewOled(const char* timeBuf) {
+  const unsigned long now = millis();
+  // Barra superior
+  if (scaleConnected) {
+    char fb[10];
+    snprintf(fb, sizeof(fb), "%.1fG/S", fabsf(displayedFlowRateGps));
+    oledDrawText(0, 1, fb, 1);
+    char rb[22];
+    snprintf(rb, sizeof(rb), "%.1f>%.1fG %uS", espDoseGrams, espressoTargetGrams(), espTargetSec);
+    oledDrawText(128 - 6 * static_cast<int>(strlen(rb)), 1, rb, 1);
+  } else {
+    oledDrawText(0, 1, "BUSCANDO DOT...", 1);
+  }
+  oledDrawHLine(0, 10, 128, true);
+
+  // Peso
+  float w = currentWeightGrams;
+  if (fabsf(w) < 0.05f) w = 0.0f;
+  char wb[12];
+  snprintf(wb, sizeof(wb), "%5.1f", w);
+  oledDrawText(4, 14, wb, 3);
+  oledDrawText(110, 21, "G", 2);
+
+  // Progreso hacia el objetivo, con la marca del punto de corte (objetivo menos el goteo aprendido)
+  const float target = espressoTargetGrams();
+  const float cut    = espressoCutGrams();
+  oledDrawRect(0, 37, 128, 7, true);
+  int fill = (target > 0.1f) ? static_cast<int>((w / target) * 124.0f) : 0;
+  if (fill < 0) fill = 0;
+  if (fill > 124) fill = 124;
+  const bool inCutZone = (shotPhase == ShotPhase::Running && w >= cut);
+  if (fill > 0 && !(inCutZone && ((now / 200UL) % 2UL) == 0)) oledFillRect(2, 39, fill, 3, true);
+  int cutX = (target > 0.1f) ? 2 + static_cast<int>((cut / target) * 124.0f) : 126;
+  if (cutX < 2) cutX = 2;
+  if (cutX > 125) cutX = 125;
+  oledDrawPixel(cutX, 44, true); oledDrawPixel(cutX, 45, true);   // marca del corte (solo debajo: arriba toca la G)
+  oledDrawPixel(cutX - 1, 45, true); oledDrawPixel(cutX + 1, 45, true);
+
+  // Ratio y preinfusión | estado y cronómetro
+  for (int yy = 47; yy < 64; yy++) oledDrawPixel(70, yy, true);
+  char l[16];
+  const float ratio = (espDoseGrams > 0.1f && w > 0.0f) ? w / espDoseGrams : 0.0f;
+  snprintf(l, sizeof(l), "1:%.2f", ratio);
+  oledDrawText(0, 48, l, 1);
+  if (shotPhase != ShotPhase::Idle && shotPiKnown && shotFirstDropMs != 0) {
+    snprintf(l, sizeof(l), "PI %.1fS", (shotFirstDropMs - shotStartMs) / 1000.0f);
+  } else if (shotPhase == ShotPhase::Running && shotPiKnown) {
+    snprintf(l, sizeof(l), "PI ...");
+  } else {
+    snprintf(l, sizeof(l), "PI --");
+  }
+  oledDrawText(0, 57, l, 1);
+
+  const char* st;
+  if (shotPhase == ShotPhase::Running)       st = inCutZone ? "CORTA!" : (w >= cut - 3.0f ? "CASI" : "SHOT");
+  else if (shotPhase == ShotPhase::Settling) st = "GOTEO";
+  else if (espressoArmed())                  st = "LISTO";
+  else                                       st = "ESPRESSO";
+  oledDrawText(74, 48, st, 1);
+  oledDrawText(74, 57, timeBuf, 1);
+}
+
+// Visor de shots: gráfica (peso, caudal, objetivo y primera gota) o ficha
+void renderShotViewerOled() {
+  oledFillRect(0, 0, 128, 11, true);
+  if (savedShotsCount == 0) {
+    oledDrawText(4, 2, "HISTORIAL DE SHOTS", 1, true);
+    oledDrawText(10, 24, "SIN SHOTS", 1);
+    oledDrawText(10, 36, "GUARDADOS", 1);
+    oledDrawText(10, 52, "CLICK: VOLVER", 1);
+    return;
+  }
+  if (selectedShotSlot < 0) selectedShotSlot = 0;
+  if (selectedShotSlot >= savedShotsCount) selectedShotSlot = static_cast<int8_t>(savedShotsCount - 1);
+  const ShotRecord& r = savedShots[selectedShotSlot];
+  const float ratio = (r.doseGrams > 0.1f) ? r.yieldGrams / r.doseGrams : 0.0f;
+  const bool piKnown = (r.flags & SHOT_FLAG_PI_KNOWN) != 0;
+
+  char hdr[32];
+  snprintf(hdr, sizeof(hdr), "#%u %.1fG 1:%.1f %.1fS", r.shotId, r.yieldGrams, ratio, r.timeDs / 10.0f);
+  oledDrawText(2, 2, hdr, 1, true);
+
+  if (!pourViewerShowStatsPage) {
+    oledDrawRect(0, 13, 128, 42, true);
+    // Línea del objetivo (punteada), a la misma escala que la curva de peso
+    float maxW = (r.yieldGrams > r.targetGrams ? r.yieldGrams : r.targetGrams) * 1.05f;
+    if (maxW < 10.0f) maxW = 10.0f;
+    int ty = 53 - static_cast<int>((r.targetGrams / maxW) * 38.0f);
+    for (int x = 3; x < 125; x += 3) oledDrawPixel(x, ty, true);
+    // Primera gota (vertical punteada)
+    if (piKnown && r.timeDs > 0) {
+      int px = 4 + static_cast<int>((static_cast<float>(r.piDs) / r.timeDs) * 118.0f);
+      for (int y = 15; y < 54; y += 3) oledDrawPixel(px, y, true);
     }
-
-    char lineBuf[24];
-    if (itemIdx == 2) {
-      snprintf(lineBuf, sizeof(lineBuf), "3.DOSIS: %4.1fG%s",
-               coffeeDoseGrams, (uiState == UiState::MenuEditDose && selected) ? " <" : "");
-      oledDrawText(4, yPos, lineBuf, 1, selected);
-    } else {
-      oledDrawText(4, yPos, labels[itemIdx], 1, selected);
+    int prevPy = -1;
+    for (uint8_t i = 0; i < SHOT_GRAPH_POINTS; i++) {
+      const int px = 4 + i * 2;
+      uint8_t hF = r.flowCurve[i] > 38 ? 38 : r.flowCurve[i];
+      for (uint8_t y = 0; y < hF; y += 2) { oledDrawPixel(px, 53 - y, true); }
+      uint8_t hW = r.weightCurve[i] > 38 ? 38 : r.weightCurve[i];
+      const int py = 53 - hW;
+      for (int dx = 0; dx < 2; dx++) {
+        oledDrawPixel(px + dx, py, true);
+        if (py > 14) oledDrawPixel(px + dx, py - 1, true);
+      }
+      if (prevPy >= 0) {
+        const int y0 = py < prevPy ? py : prevPy, y1 = py > prevPy ? py : prevPy;
+        for (int yy = y0; yy <= y1; yy++) oledDrawPixel(px, yy, true);
+      }
+      prevPy = py;
     }
+    char foot[32];
+    if (piKnown) snprintf(foot, sizeof(foot), "PI %.1fS %d/%u +INFO", r.piDs / 10.0f, selectedShotSlot + 1, savedShotsCount);
+    else         snprintf(foot, sizeof(foot), "PI -- %d/%u +INFO", selectedShotSlot + 1, savedShotsCount);
+    oledDrawText(0, 56, foot, 1);
+  } else {
+    char l1[32], l2[32], l3[32], l4[32];
+    snprintf(l1, sizeof(l1), "BEBIDA:%.1fG OBJ:%.0f", r.yieldGrams, r.targetGrams);
+    snprintf(l2, sizeof(l2), "DOSIS:%.1fG -> 1:%.2f", r.doseGrams, ratio);
+    if (piKnown) snprintf(l3, sizeof(l3), "TIEMPO:%.1fS PI:%.1fS", r.timeDs / 10.0f, r.piDs / 10.0f);
+    else         snprintf(l3, sizeof(l3), "TIEMPO:%.1fS PI:--", r.timeDs / 10.0f);
+    const float reb = r.yieldGrams - r.weightAtStop;
+    if (r.flags & SHOT_FLAG_AUTOSTOP)     snprintf(l4, sizeof(l4), "FIN AUTOMATICO");
+    else if (r.flags & SHOT_FLAG_MACHINE) snprintf(l4, sizeof(l4), "CORTE:CAFETERA %+.1fG", reb);
+    else                                  snprintf(l4, sizeof(l4), "CORTE:MANUAL %+.1fG", reb);
+    oledDrawText(2, 15, l1, 1);
+    oledDrawText(2, 27, l2, 1);
+    oledDrawText(2, 39, l3, 1);
+    oledDrawHLine(0, 51, 128, true);
+    oledDrawText(2, 55, l4, 1);
   }
 }
 
@@ -290,6 +462,21 @@ void renderOledScreen() {
     oledDrawRect(0, 0, 128, 64, true);
     oledFillRect(2, 2, 124, 14, true);
     char bHdr[22];
+    if (bannerIsShot) {
+      snprintf(bHdr, sizeof(bHdr), "SHOT #%u GUARDADO!", lastSavedShotId);
+      oledDrawText(12, 5, bHdr, 1, true);
+      if (savedShotsCount > 0) {
+        const ShotRecord& r = savedShots[savedShotsCount - 1];
+        char l1[24], l2[24];
+        snprintf(l1, sizeof(l1), "BEBIDA:%.1fG 1:%.2f", r.yieldGrams, r.doseGrams > 0.1f ? r.yieldGrams / r.doseGrams : 0.0f);
+        if (r.flags & SHOT_FLAG_PI_KNOWN) snprintf(l2, sizeof(l2), "TIEMPO:%.1fS PI:%.1fS", r.timeDs / 10.0f, r.piDs / 10.0f);
+        else                              snprintf(l2, sizeof(l2), "TIEMPO:%.1fS", r.timeDs / 10.0f);
+        oledDrawText(4, 24, l1, 1);
+        oledDrawText(4, 40, l2, 1);
+      }
+      oledFlush();
+      return;
+    }
     snprintf(bHdr, sizeof(bHdr), "POUR #%u GUARDADO!", lastSavedPourId);
     oledDrawText(12, 5, bHdr, 1, true);
 
@@ -306,12 +493,13 @@ void renderOledScreen() {
   }
 
   if (uiState == UiState::PourViewer) {
-    renderPourOverViewerOled();
+    if (viewerShowsShots) renderShotViewerOled();
+    else                  renderPourOverViewerOled();
     oledFlush();
     return;
   }
 
-  if (uiState == UiState::Menu || uiState == UiState::MenuEditDose) {
+  if (uiState == UiState::Menu || uiState == UiState::MenuEdit) {
     renderSettingsMenuOled();
     oledFlush();
     return;
@@ -325,6 +513,17 @@ void renderOledScreen() {
       return;
     }
     currentScreenView = 0;
+  }
+
+  // Modo espresso: la vista 0 es la del shot (las vistas 1 a 3 son comunes)
+  if (brewMode == BrewMode::Espresso && currentScreenView == 0) {
+    unsigned long ms = timerAccumulatedMs;
+    if (timerRunning) ms += (now - timerStartMillis);
+    char tb[12];
+    snprintf(tb, sizeof(tb), "%lu.%lu S", ms / 1000UL, (ms % 1000UL) / 100UL);
+    renderEspressoViewOled(tb);
+    oledFlush();
+    return;
   }
 
   // 1. BARRA SUPERIOR (y = 0..9):

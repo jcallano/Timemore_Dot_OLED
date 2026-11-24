@@ -278,20 +278,20 @@ void teardownBookooServer() {
 // ---------------------------------------------------------------------------
 // Comandos de la máquina (procesados en loop(), dueño del estado del cronómetro y la tara)
 // ---------------------------------------------------------------------------
+// La cafetera arranca y para un shot de espresso (45_espresso.ino): se guarda en el historial de shots,
+// con la preinfusión medida desde el START, en cualquier modo. No va al historial de pour-overs.
 static void bookooTimerStart() {
   if (timerRunning) return;
-  if (timerAccumulatedMs == 0) resetLivePourRecording();
-  timerStartMillis = millis();
-  timerRunning     = true;
-  autoTimerArmed   = false;
+  espressoMachineShotStart();
 }
 
-// La máquina para el cronómetro, pero el shot NO se guarda en el historial de Pour-Over
-// (era un espresso; el rebase se registra aparte en bookooUpdateDiagnostics)
 static void bookooTimerStop() {
-  if (!timerRunning) return;
-  timerAccumulatedMs += (millis() - timerStartMillis);
-  timerRunning = false;
+  if (shotPhase == ShotPhase::Running) {
+    espressoMachineShotStop();
+  } else if (timerRunning) {
+    timerAccumulatedMs += (millis() - timerStartMillis);
+    timerRunning = false;
+  }
 }
 
 static void bookooLogCmd(uint8_t cmd) {
@@ -364,6 +364,7 @@ void bookooUpdateDiagnostics() {
 
 static void bookooTimerReset() {
   pourSavedBannerUntilMs = 0;
+  espressoCancelShot();
   timerRunning           = false;
   timerAccumulatedMs     = 0;
   autoTimerArmed         = autoTimerEnabled;

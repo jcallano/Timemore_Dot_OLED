@@ -21,14 +21,16 @@ El aparato hace de intermediario: recibe el peso de la Dot por Bluetooth y se lo
 
 Además, la pantalla te dice cuánto sigue cayendo en la taza después de que la máquina pare, para afinar el peso objetivo.
 
-**Cómo se activa:** en el aparato, *Menú → 5. Puente BooKoo: ON*. En la cafetera, *Machine Settings → Connectivity → Smart Scale → ON → Scan* y elige la báscula `BOOKOO_SC_U …`. Paso a paso en el [manual](./MANUAL.md#34-puente-con-la-wendougee).
+**Cómo se activa:** en el aparato, *Menú → Puente BooKoo: ON*. En la cafetera, *Machine Settings → Connectivity → Smart Scale → ON → Scan* y elige la báscula `BOOKOO_SC_U …`. Paso a paso en el [manual](./MANUAL.md#35-puente-con-la-wendougee).
 
 ## Qué hace
 
 - **Peso grande y claro**, con cuatro pantallas a elegir girando el mando: principal (caudal, dosis, ratio y tiempo), solo peso, barra de caudal y gráfica del caudal.
 - **Medidor de caudal para pour-over** con la zona ideal marcada (3,5 a 7,5 g/s).
-- **Tara y cronómetro con un clic.** Con el modo automático, el cronómetro arranca al empezar a verter y para al retirar la jarra.
-- **Historial de las 10 últimas preparaciones**, con su gráfica, el ratio y el tiempo.
+- **Dos modos, como la app de Timemore: pour-over y espresso.**
+- **Pour-over:** tara y cronómetro con un clic; con el modo automático, el cronómetro arranca al empezar a verter y para al retirar la jarra. Reconoce el bloom.
+- **Espresso:** receta configurable (dosis, ratio y tiempo), **preinfusión** (tiempo hasta la primera gota), barra de progreso hacia el peso objetivo y aviso para cortar a tiempo (en pantalla y con el LED), que aprende cuánto sigue cayendo tras cortar.
+- **Historiales** de los 10 últimos pour-overs y los 10 últimos shots, con su gráfica y su ficha.
 - **Puente para la Wendougee** (ver arriba).
 - **Funciona con batería** recargable por USB-C, se atenúa y se duerme solo para ahorrar.
 - **Se actualiza por Bluetooth desde el navegador**, con [una página web](https://jcallano.github.io/Timemore_Dot_OLED/ota/): sin cables ni programas.
@@ -42,6 +44,10 @@ Un V60 completo, grabado de la propia pantalla del aparato y acelerado 10 veces:
 <img src="docs/img/v60_demo.gif" width="544" alt="Animación: pour-over de V60 en la pantalla, con bloom, tres vertidos, aviso de guardado, gráfica y ficha BLOOM+3">
 
 *Receta de ejemplo: 15 g de café y 250 g de agua, bloom de 45 g con 30 s de espera y tres vertidos. El peso es simulado (se inyecta en el aparato en lugar del de la Dot), pero todo lo demás es el firmware real funcionando.*
+
+Y un espresso de 18 g a 36 g, acelerado 2 veces: clic al pulsar la cafetera, preinfusión, aviso `CASI` antes del punto de corte, corte, goteo y resumen del shot.
+
+<img src="docs/img/espresso_demo.gif" width="544" alt="Animación: espresso en la pantalla, con preinfusión, barra de progreso, aviso CASI, corte, goteo, shot guardado, gráfica y ficha">
 
 Capturas fijas de la pantalla, sacadas de la memoria del aparato:
 
@@ -87,7 +93,7 @@ Y, claro, una **Timemore Black Mirror Dot**.
 
 ## In English
 
-**Use a Timemore Black Mirror Dot scale with a Wendougee espresso machine.** Wendougee Lita, Lita BA and Data-S machines (E-Bar, GeeFlow) only accept BooKoo smart scales. This small open-source ESP32-S3 device connects to the Timemore Dot over Bluetooth and presents itself to the machine as a **BooKoo Themis Ultra**, so the machine can read the Dot's weight in real time, tare, run the timer and stop the shot by target weight. It also gives the Dot what it lacks: an OLED display with weight, flow rate, brew ratio and timer, a rotary knob, auto-start/stop timer and a pour-over history. 3D-printable case and Arduino firmware included (Arduino IDE 2.3.10, esp32 core 3.3.12, NimBLE-Arduino 2.5.2). Documentation is in Spanish.
+**Use a Timemore Black Mirror Dot scale with a Wendougee espresso machine.** Wendougee Lita, Lita BA and Data-S machines (E-Bar, GeeFlow) only accept BooKoo smart scales. This small open-source ESP32-S3 device connects to the Timemore Dot over Bluetooth and presents itself to the machine as a **BooKoo Themis Ultra**, so the machine can read the Dot's weight in real time, tare, run the timer and stop the shot by target weight. It also gives the Dot what it lacks: an OLED display with weight, flow rate, brew ratio and timer, a rotary knob, and two modes like the Timemore app. Pour-over mode has an auto-start/stop timer, bloom detection and a pour-over history. Espresso mode has a configurable recipe (dose, ratio, target time), pre-infusion time, a progress bar with a learned "cut now" alert and a shot history. 3D-printable case and Arduino firmware included (Arduino IDE 2.3.10, esp32 core 3.3.12, NimBLE-Arduino 2.5.2). Documentation is in Spanish.
 
 ## Licencia
 
