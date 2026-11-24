@@ -48,12 +48,20 @@ Es la pantalla al encender. El peso se ve siempre en grande; al girar el encoder
 | **2 · Caudal** | Barra de caudal (0-5 g/s), caudal en g/s y cronómetro | Controlar el ritmo de vertido |
 | **3 · Gráfica** | Curva en vivo del caudal de los últimos 16 s y cronómetro | Ver la regularidad de los vertidos |
 
+| Vista 0 · Principal | Vista 1 · Báscula |
+| :---: | :---: |
+| <img src="docs/img/pantallas/05_vista0_principal.png" width="340" alt="Vista principal: caudal con medidor, peso, dosis, ratio y cronómetro"> | <img src="docs/img/pantallas/06_vista1_bascula.png" width="340" alt="Vista báscula: peso gigante y cronómetro"> |
+| **Vista 2 · Caudal** | **Vista 3 · Gráfica** |
+| <img src="docs/img/pantallas/07_vista2_caudal.png" width="340" alt="Vista caudal: barra y caudal en g/s"> | <img src="docs/img/pantallas/08_vista3_grafica.png" width="340" alt="Vista gráfica: curva del caudal en vivo"> |
+
+*Capturas reales de la pantalla, con la báscula en reposo.*
+
 En las vistas 1 a 3, la barra superior indica el estado de la Dot y su batería:
 - `[FLOW]`: está cayendo agua;
 - `[STBL]`: peso estable;
 - `[MOVE]`: el peso se está moviendo.
 
-Con el puente activo (3.4), arriba a la izquierda aparece `bk` (anunciándose a la cafetera) o `BK` en negativo (cafetera conectada).
+Con el puente activo (3.4), arriba a la izquierda aparece `BK`: normal mientras se anuncia a la cafetera y en negativo cuando la cafetera está conectada.
 
 Si el display tiene medidor de batería, su icono aparece arriba a la derecha. Se anima mientras carga y parpadea por debajo del 10 %.
 
@@ -69,6 +77,8 @@ El cronómetro puede arrancar y parar solo. Activa o desactiva esta función en 
    - o, con Auto-Brew, **retira el dripper o la jarra**: si el peso se queda 5 s por debajo del 70 % del máximo, el cronómetro se para en el momento de la caída y se guarda. El bloom y las pausas entre vertidos no lo disparan.
 5. Aparece `POUR #N GUARDADO!` con el peso final, el ratio y el tiempo.
 
+<img src="docs/img/pantallas/01_pour_guardado.png" width="340" alt="Aviso POUR #22 GUARDADO con peso 250 g, ratio 1:16.7, dosis 15 g y 165 s">
+
 Sin Auto-Brew, el cronómetro se maneja a mano: 1 clic para iniciar y 1 clic para parar y guardar. Si reanudas y vuelves a parar, se actualiza la misma preparación.
 
 ### 3.3 Historial de preparaciones
@@ -80,6 +90,12 @@ Sin Auto-Brew, el cronómetro se maneja a mano: 1 clic para iniciar y 1 clic par
   - la **gráfica**: línea del peso acumulado y barras de caudal, con la dosis y el número de vertidos;
   - la **ficha**: agua, dosis y ratio, caudal medio y máximo, y número de vertidos.
 - **2 o 3 clics** para salir.
+
+| Gráfica | Ficha |
+| :---: | :---: |
+| <img src="docs/img/pantallas/02_historial_grafica.png" width="340" alt="Gráfica del pour-over: peso acumulado en escalones y barras de caudal de cada vertido"> | <img src="docs/img/pantallas/03_historial_ficha.png" width="340" alt="Ficha: 250 g, dosis 15 g, ratio 1:16.7, caudal medio 1.5 y máximo 4.5 g/s, 4 vertidos"> |
+
+*Ejemplo: 15 g de café y 250 g de agua (1:16,7) en 2:45, con un bloom de 45 g y 30 s de espera, y tres vertidos hasta 120, 190 y 250 g. En la gráfica, la línea es el peso acumulado y las barras, el caudal de cada vertido. El bloom cuenta como un vertido, por eso indica 4.*
 
 ### 3.4 Puente con la Wendougee
 
@@ -117,6 +133,8 @@ Para dejar de usarlo: *Menú → 5. Puente BooKoo: OFF*.
 
 Se abre con **3 clics** (o manteniendo pulsado 1,5 s). Gira para moverte y haz 1 clic para elegir.
 
+<img src="docs/img/pantallas/04_menu.png" width="340" alt="Menú: pour-overs, auto-timer, dosis y brillo">
+
 | Opción | Qué hace |
 | :--- | :--- |
 | **1. Pour-overs (n/10)** | Abre el historial (3.3) |
@@ -148,7 +166,7 @@ Si algo falla a mitad, no se instala nada: el aparato sigue con el firmware ante
 | Situación | Qué pasa |
 | :--- | :--- |
 | 2 min sin actividad | La pantalla se atenúa |
-| 10 min sin actividad, o *Menú → 8* | **Reposo**: pantalla y Bluetooth apagados. Despierta al girar o pulsar el encoder, o con BOOT, y vuelve a conectar con la Dot. No ocurre mientras la Wendougee está conectada |
+| 10 min sin actividad, o *Menú → 8* | **Reposo**: pantalla y Bluetooth apagados. Despierta al girar o pulsar el encoder, o con BOOT, y vuelve a conectar con la Dot. No ocurre mientras la Wendougee está conectada ni mientras está enchufado a un ordenador por USB |
 | Batería por debajo de 3,25 V (solo con medidor de batería) | Muestra `BATERIA BAJA / CARGA POR USB-C` y se apaga. Para volver a encenderlo, cárgalo y pulsa el encoder |
 
 Cuentan como actividad tocar el encoder, cualquier cambio de peso en la Dot y tener el cronómetro en marcha.

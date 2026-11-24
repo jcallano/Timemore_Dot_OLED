@@ -35,6 +35,16 @@ Además, la pantalla te dice cuánto sigue cayendo en la taza después de que la
 
 Todo se explica en el **[manual de uso](./MANUAL.md)**.
 
+## Así se ve
+
+Capturas reales de la pantalla, sacadas de la memoria del aparato. El resumen es de un pour-over de ejemplo: 15 g de café y 250 g de agua, con bloom de 30 s y tres vertidos.
+
+| Pantalla principal | Pour-over guardado |
+| :---: | :---: |
+| <img src="docs/img/pantallas/05_vista0_principal.png" width="340" alt="Pantalla principal con caudal, peso, dosis, ratio y cronómetro"> | <img src="docs/img/pantallas/01_pour_guardado.png" width="340" alt="Aviso de pour-over guardado: 250 g, ratio 1:16.7, 165 s"> |
+| **Gráfica del pour-over** | **Ficha del pour-over** |
+| <img src="docs/img/pantallas/02_historial_grafica.png" width="340" alt="Gráfica: peso acumulado y caudal del bloom y los tres vertidos"> | <img src="docs/img/pantallas/03_historial_ficha.png" width="340" alt="Ficha: agua, dosis, ratio, caudal medio y máximo, vertidos"> |
+
 ## Qué necesitas
 
 | Pieza | Modelo |

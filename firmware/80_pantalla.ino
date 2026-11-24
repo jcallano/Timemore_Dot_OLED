@@ -65,7 +65,8 @@ void renderPourOverViewerOled() {
 
     // Pie de gráfica: Dosis, número de vertidos e índice (ej. "D:15.0G 4V [1/3] CLK:DAT")
     char foot[32];
-    snprintf(foot, sizeof(foot), "D:%4.1fG %uV [%d/%u] +INFO",
+    // Máximo 21 caracteres (128 px): "D:15.0 4V 10/10 +INFO". Antes "D:15.0G 4V [10/10] +INFO" (24) se cortaba.
+    snprintf(foot, sizeof(foot), "D:%.1f %uV %d/%u +INFO",
              rec.doseGrams, rec.poursCount, selectedPourSlot + 1, savedPoursCount);
     oledDrawText(0, 56, foot, 1);
 
@@ -290,10 +291,10 @@ void renderOledScreen() {
     if (savedPoursCount > 0 && psramSavedPours != nullptr) {
       const PourOverRecord& rec = psramSavedPours[savedPoursCount - 1];
       char l1[22], l2[22];
-      snprintf(l1, sizeof(l1), "PESO: %5.1fG (1:%.1f)", rec.finalWeightGrams, rec.finalRatio);
+      snprintf(l1, sizeof(l1), "PESO:%5.1fG (1:%.1f)", rec.finalWeightGrams, rec.finalRatio);
       snprintf(l2, sizeof(l2), "DOSIS:%4.1fG T:%u S", rec.doseGrams, rec.durationSec);
-      oledDrawText(6, 24, l1, 1);
-      oledDrawText(6, 40, l2, 1);
+      oledDrawText(4, 24, l1, 1);  // 20 caracteres: cabe entre los bordes del marco
+      oledDrawText(4, 40, l2, 1);
     }
     oledFlush();
     return;

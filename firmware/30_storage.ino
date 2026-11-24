@@ -200,7 +200,15 @@ void saveDoseToNVS() {
   pourPrefs.end();
 }
 
+bool storePourRecord(unsigned long totalElapsedMs, bool persistToNvs);
+
 bool finalizeAndSaveCurrentPourOver(unsigned long totalElapsedMs) {
+  return storePourRecord(totalElapsedMs, true);
+}
+
+// Crea el registro del Pour-Over a partir de las muestras en vivo. persistToNvs = false: solo en RAM
+// (pour-over de demostración de la orden serie 'd', que no debe ensuciar el historial guardado).
+bool storePourRecord(unsigned long totalElapsedMs, bool persistToNvs) {
   if (psramSavedPours == nullptr || psramLiveSamples == nullptr) return false;
   uint16_t durSec = static_cast<uint16_t>(totalElapsedMs / 1000UL);
   float finalW = currentWeightGrams;
@@ -265,19 +273,87 @@ bool finalizeAndSaveCurrentPourOver(unsigned long totalElapsedMs) {
 
   // Persistir en NVS Flash para que no se pierda al apagar la batería
   // Solo se escribe este registro, en su hueco del anillo (pisa al de hace 10 Pour-Overs)
-  Preferences pourPrefs;
-  pourPrefs.begin(NVS_POUR_NAMESPACE, false);
-  pourPrefs.putUShort("next_id", nextPourSequenceId);
-  char key[12];
-  snprintf(key, sizeof(key), "rec_%u", rec.pourId % MAX_SAVED_POURS);
-  pourPrefs.putBytes(key, &rec, sizeof(PourOverRecord));
-  pourPrefs.end();
+  if (persistToNvs) {
+    Preferences pourPrefs;
+    pourPrefs.begin(NVS_POUR_NAMESPACE, false);
+    pourPrefs.putUShort("next_id", nextPourSequenceId);
+    char key[12];
+    snprintf(key, sizeof(key), "rec_%u", rec.pourId % MAX_SAVED_POURS);
+    pourPrefs.putBytes(key, &rec, sizeof(PourOverRecord));
+    pourPrefs.end();
+  }
 
   selectedPourSlot       = static_cast<int8_t>(targetIdx);
   lastSavedPourId        = rec.pourId;
   pourSavedBannerUntilMs = millis() + 2200UL;
 
-  Serial.printf("[POUR-SAVE] Pour-Over #%u guardado en PSRAM+NVS: Peso=%.1fg | Dosis=%.1fg | Ratio=1:%.1f | Tiempo=%us | Vertidos=%u\n",
-                rec.pourId, rec.finalWeightGrams, rec.doseGrams, rec.finalRatio, rec.durationSec, rec.poursCount);
+  Serial.printf("[POUR-SAVE] Pour-Over #%u guardado en %s: Peso=%.1fg | Dosis=%.1fg | Ratio=1:%.1f | Tiempo=%us | Vertidos=%u\n",
+                rec.pourId, persistToNvs ? "PSRAM+NVS" : "RAM (demo)", rec.finalWeightGrams, rec.doseGrams,
+                rec.finalRatio, rec.durationSec, rec.poursCount);
   return true;
+}
+
+// ----------------------------------------------------------------------------
+// POUR-OVER DE DEMOSTRACIÓN (orden serie 'd'), para capturas de pantalla.
+// 15 g de café y 250 g de agua (1:16.7): bloom de 45 g con 30 s de espera, y 3 vertidos hasta 120, 190
+// y 250 g, con bajada final hasta los 2:45. El peso se genera a 10 Hz con la resolución de la Dot (0.1 g)
+// y pasa por el motor de caudal REAL (src/flow_engine), con el mismo muestreo a 2 Hz y la misma
+// detección de vertidos que una preparación de verdad. Solo queda en RAM (no se escribe en la NVS).
+// ----------------------------------------------------------------------------
+void injectDemoPourOver() {
+  if (psramLiveSamples == nullptr) return;
+
+  // Tramos: hasta el segundo t1, el peso va de forma lineal hasta w1 (los vertidos) o se mantiene (esperas)
+  struct Seg { float t1; float w1; };
+  static const Seg segs[] = {
+    {10.0f, 45.0f},   // bloom: vertido de 45 g en 10 s
+    {30.0f, 45.0f},   // espera del bloom hasta los 30 s
+    {55.0f, 120.0f},  // vertido 1
+    {65.0f, 120.0f},
+    {90.0f, 190.0f},  // vertido 2
+    {100.0f, 190.0f},
+    {120.0f, 250.0f}, // vertido 3
+    {165.0f, 250.0f}, // bajada (drawdown) hasta 2:45
+  };
+  const float totalSec = 165.0f;
+
+  FlowEngine fe;
+  fe.reset(0.0f);
+  const float savedDose   = coffeeDoseGrams;
+  const uint16_t savedNext = nextPourSequenceId;
+  coffeeDoseGrams = 15.0f;
+  resetLivePourRecording();
+
+  const unsigned long base = 1000UL;
+  float prevT = 0.0f, prevW = 0.0f;
+  uint8_t seg = 0;
+  float peak = 0.0f;
+  uint8_t pulses = 0;
+  bool pouring = false;
+  for (unsigned long ms = 0; ms <= (unsigned long)(totalSec * 1000.0f); ms += 100UL) {
+    float t = ms / 1000.0f;
+    while (seg < sizeof(segs) / sizeof(segs[0]) - 1 && t > segs[seg].t1) {
+      prevT = segs[seg].t1; prevW = segs[seg].w1; seg++;
+    }
+    float w = prevW + (segs[seg].w1 - prevW) * ((t - prevT) / (segs[seg].t1 - prevT));
+    w = roundf(w * 10.0f) / 10.0f;  // resolución de la Dot
+    fe.addSample(base + ms, w, true);
+    float flow = fe.currentGps;
+    if (flow > peak) peak = flow;
+    if (!pouring && flow >= 0.8f) { pouring = true; pulses++; }
+    else if (pouring && flow <= 0.25f) { pouring = false; }
+    if ((ms % 500UL) == 0 && liveSampleCount < MAX_LIVE_POUR_SAMPLES) {
+      psramLiveSamples[liveSampleCount].weightGrams = w;
+      psramLiveSamples[liveSampleCount].flowGps     = (flow > 0.0f) ? flow : 0.0f;
+      liveSampleCount++;
+    }
+  }
+  peakFlowRateGps        = peak;
+  currentPourPulsesCount = pulses;
+  storePourRecord((unsigned long)(totalSec * 1000.0f), false);
+
+  coffeeDoseGrams    = savedDose;
+  nextPourSequenceId = savedNext;   // el siguiente pour-over real conserva su número
+  resetLivePourRecording();
+  uiNeedsImmediateRedraw = true;
 }

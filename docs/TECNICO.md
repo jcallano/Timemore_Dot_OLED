@@ -109,6 +109,21 @@ Dot --(0xFFF1, 10 Hz)--> ESP32-S3 --(0x0FFE/0xFF11, trama 03 0B de 20 bytes)--> 
 | `b` | Activar / desactivar el puente BooKoo |
 | `x` | **Autotest** de los módulos (protocolo, motor de caudal y puente BooKoo), con resultado OK/FALLO por caso |
 | `q` | **Sonda de la cola de la Dot**: envía `02 08` y mide cuánto tarda la respuesta. Con la cola vacía, unos 100 ms |
+| `s` | **Captura de pantalla**: vuelca el framebuffer de la OLED en hexadecimal (`[FB] BEGIN` … `[FB] END`) |
+| `d` | **Pour-over de demostración**: 15 g / 250 g, bloom de 30 s y 3 vertidos, generado a 10 Hz y pasado por el motor de caudal real. Solo en RAM: no se escribe en la NVS ni cambia el número del siguiente pour-over |
+| `0`-`3` | Vista de pesaje 0 a 3 |
+| `g` / `i` | Historial en el último pour-over: gráfica / ficha |
+| `m` | Abrir el menú |
+
+**Capturas en PNG:** guarda la salida del monitor serie en un archivo (tras una o varias órdenes `s`) y ejecuta
+
+```text
+node tools/oled_capture.js captura.log docs/img/pantallas nombre1 nombre2 ...
+```
+
+Cada bloque `[FB]` se convierte en un PNG con aspecto de OLED. El script no tiene dependencias, solo usa Node.js. Las capturas del manual se hicieron así, con la secuencia `d s g s i s m s 0 s 1 s 2 s 3 s`.
+
+Con un ordenador conectado por USB, el aparato no entra en reposo, porque el reposo apaga el USB y no se podría cargar firmware ni usar el monitor serie. Lo detecta con `HWCDC::isPlugged()`; con un cargador sin datos sí duerme.
 
 Cada 5 s se imprime `[STATUS]` con la conexión, el peso, el caudal, las baterías, el intervalo BLE, los paquetes recibidos, el tiempo de volcado de la OLED y el diagnóstico del divisor. Con la Dot conectada se añade `[LINK]`: el MTU negociado, las notificaciones con varias tramas (`tramas juntadas N/M`) y el resultado de la última sonda. Con el puente activo, `[BOOKOO]` indica el nombre anunciado, si la cafetera está conectada y suscrita, y las tramas y comandos intercambiados.
 
@@ -151,6 +166,7 @@ Todo el firmware está en [`firmware/`](../firmware/); la carpeta y la pestaña 
 | `src/bookoo_protocol.*` | **Módulo puro**: tramas BooKoo (peso, comandos de la cafetera, anuncio) |
 | `src/selftest.*` | Autotest de los módulos puros (orden `x`) |
 | `partitions.csv` | Tabla de particiones de 8 MB |
+| `../tools/oled_capture.js` | (fuera del sketch) Convierte los volcados de pantalla de la orden `s` en PNG |
 
 El IDE de Arduino concatena las pestañas `.ino` detrás de la principal en orden alfabético, de ahí los prefijos numéricos. Los módulos de `src/` no dependen de Arduino ni de variables globales, así que se pueden probar con tramas o vertidos simulados (el autotest los ejecuta en la propia placa).
 

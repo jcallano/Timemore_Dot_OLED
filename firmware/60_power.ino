@@ -286,8 +286,10 @@ void updateBatteryAndPowerManagement() {
   }
 
   // Auto Deep-Sleep tras 10 minutos sin uso
-  // (no con la máquina conectada por el puente BooKoo: dormir apaga la radio y la máquina pierde la báscula)
-  if (inactiveMs >= AUTO_SLEEP_TIMEOUT_MS && !bookooMachineConnected) {
+  // (no con la máquina conectada por el puente BooKoo: dormir apaga la radio y la máquina pierde la báscula;
+  //  ni conectado a un ordenador por USB: el reposo apaga el USB y no se podría cargar firmware ni ver el
+  //  monitor serie. isPlugged() detecta las tramas SOF del host: un cargador sin datos no cuenta)
+  if (inactiveMs >= AUTO_SLEEP_TIMEOUT_MS && !bookooMachineConnected && !HWCDC::isPlugged()) {
     enterDeepSleepMode("MODO REPOSO");
   }
 }

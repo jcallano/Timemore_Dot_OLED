@@ -281,6 +281,36 @@ static void selfTestPrint(const char* line) {
   Serial.println(line);
 }
 
+// Captura de pantalla (orden 's'): vuelca el framebuffer de la OLED (128x64, 8 páginas de 128 bytes;
+// bit 0 de cada byte = fila superior de la página) en hexadecimal. tools/oled_capture.js lo convierte
+// en PNG.
+// El Serial no bloqueante solo garantiza 64 bytes libres: cada línea (263 caracteres) se envía en trozos
+// de 32 bytes del framebuffer (64 caracteres), esperando hueco antes de cada uno.
+static void waitSerialRoom() {
+  unsigned long t0 = millis();
+  while (!SafeUsbSerial.canWrite() && (millis() - t0) < 300UL) delay(2);
+}
+
+static void dumpOledFramebuffer() {
+  char part[8 + 64 + 1];
+  selfTestPrint("[FB] BEGIN 128x64");
+  for (uint8_t page = 0; page < 8; page++) {
+    const uint8_t* src = &oledBuffer[page * 128];
+    snprintf(part, sizeof(part), "[FB] %u ", page);
+    waitSerialRoom();
+    Serial.print(part);
+    for (uint8_t x = 0; x < 128; x += 32) {
+      int n = 0;
+      for (uint8_t i = 0; i < 32; i++) n += snprintf(part + n, sizeof(part) - n, "%02X", src[x + i]);
+      waitSerialRoom();
+      Serial.print(part);
+    }
+    waitSerialRoom();
+    Serial.println();
+  }
+  selfTestPrint("[FB] END");
+}
+
 void handleSerialCommands() {
   while (Serial.available() > 0) {
     char c = static_cast<char>(Serial.read());
@@ -288,6 +318,28 @@ void handleSerialCommands() {
     if (c == 'x' || c == 'X') {
       // Autotest de los módulos puros: protocolo Timemore y motor de caudal (src/selftest.cpp)
       runSelfTests(selfTestPrint);
+    } else if (c == 's' || c == 'S') {
+      dumpOledFramebuffer();
+    } else if (c == 'd' || c == 'D') {
+      // Pour-over de demostración (solo RAM) y su banner de guardado
+      injectDemoPourOver();
+    } else if (c >= '0' && c <= '3') {
+      uiState = UiState::Main;
+      currentScreenView = static_cast<uint8_t>(c - '0');
+      pourSavedBannerUntilMs = 0;
+      uiNeedsImmediateRedraw = true;
+    } else if (c == 'g' || c == 'G' || c == 'i' || c == 'I') {
+      // Visor del historial en el último pour-over: 'g' gráfica, 'i' ficha
+      uiState = UiState::PourViewer;
+      pourViewerShowStatsPage = (c == 'i' || c == 'I');
+      if (savedPoursCount > 0) selectedPourSlot = static_cast<int8_t>(savedPoursCount - 1);
+      pourSavedBannerUntilMs = 0;
+      uiNeedsImmediateRedraw = true;
+    } else if (c == 'm' || c == 'M') {
+      uiState = UiState::Menu;
+      menuSelectedIndex = 0;
+      pourSavedBannerUntilMs = 0;
+      uiNeedsImmediateRedraw = true;
     } else if (c == 'q' || c == 'Q') {
       // Sonda de la cola de la Dot: el tiempo hasta la respuesta es el tamaño de su cola (DOT_COLA_BLE.md)
       sendQueueProbe();
