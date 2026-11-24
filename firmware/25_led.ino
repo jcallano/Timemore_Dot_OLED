@@ -1,7 +1,7 @@
 // ============================================================================
 // LED RGB WS2812B DE LA WEACT (GPIO 48)
 // Color de estado (buscando / conectado / máquina BooKoo conectada / vertiendo) y destello.
-// Pestaña del sketch: el IDE la concatena tras basicoledtimemore_dot.ino (orden alfabético).
+// Pestaña del sketch: el IDE la concatena tras firmware.ino (orden alfabético).
 // Tipos, constantes y variables globales compartidas están en la pestaña principal.
 // ============================================================================
 

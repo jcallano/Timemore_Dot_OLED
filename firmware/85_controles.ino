@@ -1,7 +1,7 @@
 // ============================================================================
 // INTERFAZ: CONTROLES
 // Encoder (giro con histéresis), multiclic, botón BOOT y órdenes por el monitor serie.
-// Pestaña del sketch: el IDE la concatena tras basicoledtimemore_dot.ino (orden alfabético).
+// Pestaña del sketch: el IDE la concatena tras firmware.ino (orden alfabético).
 // Tipos, constantes y variables globales compartidas están en la pestaña principal.
 // ============================================================================
 

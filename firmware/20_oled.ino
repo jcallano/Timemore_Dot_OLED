@@ -1,7 +1,7 @@
 // ============================================================================
 // PANTALLA OLED 128x64 SSD1309 (I2C)
 // Driver propio: inicialización, primitivas de dibujo, fuente 5x7 y volcado por páginas.
-// Pestaña del sketch: el IDE la concatena tras basicoledtimemore_dot.ino (orden alfabético).
+// Pestaña del sketch: el IDE la concatena tras firmware.ino (orden alfabético).
 // Tipos, constantes y variables globales compartidas están en la pestaña principal.
 // ============================================================================
 

@@ -1,7 +1,7 @@
 // ============================================================================
 // ENCODER EC11 (PCNT por hardware)
 // Inicialización del contador de pulsos y lectura de la posición.
-// Pestaña del sketch: el IDE la concatena tras basicoledtimemore_dot.ino (orden alfabético).
+// Pestaña del sketch: el IDE la concatena tras firmware.ino (orden alfabético).
 // Tipos, constantes y variables globales compartidas están en la pestaña principal.
 // ============================================================================
 

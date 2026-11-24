@@ -1,7 +1,7 @@
 // ============================================================================
 // EXTRACCIÓN: AUTO-TIMER, AUTO-STOP Y MUESTREO
 // Usa el motor de caudal de src/flow_engine.* (estado propiedad de loop()).
-// Pestaña del sketch: el IDE la concatena tras basicoledtimemore_dot.ino (orden alfabético).
+// Pestaña del sketch: el IDE la concatena tras firmware.ino (orden alfabético).
 // Tipos, constantes y variables globales compartidas están en la pestaña principal.
 // ============================================================================
 

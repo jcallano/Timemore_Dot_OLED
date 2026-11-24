@@ -1,6 +1,6 @@
 # Plan: modo puente BooKoo en el panel (para la Wendougee Lita)
 
-Estado: **implementado** (`55_bookoo_bridge.ino`, `src/bookoo_protocol.*`; uso en el README, sección 3.9). Este documento es el análisis previo del 14-11-2026. Referencia: repo `jcallano/BLE-_Scale_Translator_Bridge__Wendougee_E-Bar` (`Bascula_Bridge_ESP32S3.ino`, `docs/PROTOCOLS.md`).
+Estado: **implementado** (`55_bookoo_bridge.ino`, `src/bookoo_protocol.*`; uso en el [manual](../MANUAL.md#34-puente-con-la-wendougee) y detalles en [TECNICO.md](./TECNICO.md#4-puente-bookoo-por-dentro)). Este documento es el análisis previo del 14-11-2026. Referencia: repo `jcallano/BLE-_Scale_Translator_Bridge__Wendougee_E-Bar` (`Bascula_Bridge_ESP32S3.ino`, `docs/PROTOCOLS.md`).
 
 Objetivo: que el panel, además de mostrar la Timemore Dot, se anuncie como **BooKoo Themis Ultra** para que la placa BLE de la Lita lo use como báscula. El panel haría de central hacia la Dot y de periférico hacia la máquina a la vez.
 

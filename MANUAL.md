@@ -168,7 +168,7 @@ Cuentan como actividad tocar el encoder, cualquier cambio de peso en la Dot y te
 | Problema | Qué hacer |
 | :--- | :--- |
 | Se queda en `BUSCANDO DOT...` | Comprueba que la Dot está encendida y cerca, y que no está conectada a la app del móvil (solo admite una conexión). Si es otra Dot, usa *Re-vincular Dot* |
-| El peso llega con retraso | No debería ocurrir: el display mantiene vacía la cola de la Dot. Si pasa, apaga y enciende la Dot. Para diagnosticarlo, ver [`COLA_DOT_MTU.md`](./COLA_DOT_MTU.md) |
+| El peso llega con retraso | No debería ocurrir: el display mantiene vacía la cola de la Dot. Si pasa, apaga y enciende la Dot. Para diagnosticarlo, ver [`COLA_DOT_MTU.md`](./docs/COLA_DOT_MTU.md) |
 | La cafetera no encuentra `BOOKOO_SC_U` | Comprueba que el puente está en ON (`bk` arriba en las vistas 1-3) y que el móvil no tiene abierta una app de básculas BooKoo |
 | La línea `AGE` sale invertida a menudo | Acerca el display a la Dot y a la cafetera; aléjalo de routers y microondas |
 | La Dot se apaga sola | Revisa su batería (en la barra superior de las vistas 1-3). El display le envía un aviso cada 25 s para que no se apague mientras está conectada |

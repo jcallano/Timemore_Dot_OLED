@@ -1,7 +1,7 @@
 // ============================================================================
 // ACTUALIZACIÓN OTA POR WI-FI
 // Punto de acceso WPA2 con clave por placa, subida web del .bin y ArduinoOTA.
-// Pestaña del sketch: el IDE la concatena tras basicoledtimemore_dot.ino (orden alfabético).
+// Pestaña del sketch: el IDE la concatena tras firmware.ino (orden alfabético).
 // Tipos, constantes y variables globales compartidas están en la pestaña principal.
 // ============================================================================
 

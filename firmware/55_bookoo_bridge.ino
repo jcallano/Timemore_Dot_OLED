@@ -6,7 +6,7 @@
 //   máquina --(0xFF12, 03 0A cmd)--> panel: tara por software y cronómetro del panel
 // Las tramas se envían desde una tarea propia en el núcleo 0 en cuanto llega cada peso de la Dot (no
 // desde loop(), que puede tardar hasta 16 ms volcando la OLED), con relleno cada 250 ms si la Dot calla.
-// Pestaña del sketch: el IDE la concatena tras basicoledtimemore_dot.ino (orden alfabético).
+// Pestaña del sketch: el IDE la concatena tras firmware.ino (orden alfabético).
 // ============================================================================
 #include <esp_mac.h>
 

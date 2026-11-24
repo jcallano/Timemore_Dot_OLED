@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * PROYECTO: Monitor OLED + Puente BLE para Timemore Black Mirror Dot
- * ARCHIVO:  basicoledtimemore_dot.ino
+ * ARCHIVO:  firmware.ino
  * PLACA:    WeAct Studio ESP32-S3-A (ESP32-S3 Core Board)
  * FUENTE:   https://github.com/jcallano/Timemore_Dot_OLED
  * LICENCIA: Copyright (c) 2026 jcallano. Creative Commons Reconocimiento 3.0 Unported
