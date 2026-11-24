@@ -49,7 +49,7 @@ Probado con estas versiones (noviembre de 2026):
 | Core **esp32** de Espressif (`esp32:esp32`) | **3.3.12** | Basado en **ESP-IDF 5.5.5**. URL del gestor de placas: `https://espressif.github.io/arduino-esp32/package_esp32_index.json` |
 | esptool | 5.3.1 | Viene con el core |
 | **NimBLE-Arduino** (h2zero) | **2.5.2** | **Única librería externa.** Instálala desde el gestor de librerías. Hace falta la serie 2.x (la 1.x tiene otra API) |
-| Wire, Preferences, WiFi, WebServer, Update, ArduinoOTA | 3.3.12 | Vienen con el core; no hay que instalarlas |
+| Wire, Preferences, Update | 3.3.12 | Vienen con el core; no hay que instalarlas |
 
 No hace falta ninguna librería de pantalla ni de LED: el driver de la OLED (fuente 5×7 incluida) está en `20_oled.ino` y el LED usa la función del core.
 
@@ -62,7 +62,8 @@ No hace falta ninguna librería de pantalla ni de LED: el driver de la OLED (fue
   esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=cdc,FlashSize=8M,PSRAM=opi,PartitionScheme=default_8MB
   ```
 - [`firmware/partitions.csv`](../firmware/partitions.csv) (incluido en el sketch) fija la tabla de 8 MB con dos apps de 3.2 MB. La NVS se mantiene en `0x9000`, así que se conservan la báscula vinculada, la dosis y el historial. **Al cambiar de tabla, la primera carga debe hacerse por USB.**
-- El firmware ocupa unos 1.29 MB (38 % de la app).
+- El firmware ocupa unos 694 KB (20 % de la app). No usa Wi-Fi.
+- Para publicar una versión que se pueda cargar por Bluetooth: *Sketch → Export Compiled Binary* y sube **`firmware.ino.bin`** (no el `merged` ni el `bootloader`) como archivo de una *release* de GitHub.
 
 ---
 
@@ -113,11 +114,20 @@ Cada 5 s se imprime `[STATUS]` con la conexión, el peso, el caudal, las baterí
 
 La vinculación de la Dot solo acepta un dispositivo con servicio Timemore (`0xFFF0`/`0xFFE0`) o nombre Timemore; su MAC se guarda en la NVS al recibir la primera trama válida.
 
-La actualización OTA también admite ArduinoOTA a `timemore-dot.local`, con la misma clave que muestra la pantalla. El `.bin` se obtiene con *Sketch → Export Compiled Binary*.
+---
+
+## 6. Actualización por Bluetooth por dentro
+
+- En modo actualización, el aparato apaga la Dot y el puente, y se anuncia como **`TMDot-OTA`** con el servicio `c0de0001-7d2e-4b5a-9c1e-0a7e5d0f0a01`. Una característica de control (`…0002`, escritura + notificación) y otra de datos (`…0003`, escritura sin respuesta).
+- El cliente es la página [`docs/ota/index.html`](./ota/index.html), publicada con GitHub Pages. Usa Web Bluetooth: Chrome/Edge de escritorio, Chrome de Android o Bluefy en iPhone.
+- **Protocolo:** `START` con el tamaño y el **PIN de 6 cifras** que muestra la pantalla (aleatorio en cada sesión; 5 fallos y sale del modo). Después, paquetes `[offset u32][datos]` del tamaño que permite el MTU. El cliente no deja más de 8 KB sin confirmar y el aparato confirma cada bloque de 4 KB ya escrito en la flash. Al final, `END`: `Update.end()` comprueba la imagen (incluido su SHA-256) antes de activarla. La especificación completa está en la cabecera de [`firmware/70_ota.ino`](../firmware/70_ota.ino).
+- El callback de NimBLE solo copia los datos a un `StreamBuffer` de 16 KB; la escritura en flash se hace en el bucle del modo OTA, fuera de la tarea Bluetooth.
+- El primer bloque debe ser una imagen de aplicación ESP32 (magic `0xE9` y `esp_app_desc_t` en el offset `0x20`). Así se rechazan el `.bin` *merged*, el del bootloader o cualquier otro archivo.
+- Si la subida se corta, se cancela y el aparato sigue con el firmware anterior (la app nueva va a la otra partición OTA y solo se activa si se verifica completa).
 
 ---
 
-## 6. Estructura del código
+## 7. Estructura del código
 
 Todo el firmware está en [`firmware/`](../firmware/); la carpeta y la pestaña principal se llaman igual porque el IDE de Arduino lo exige.
 
@@ -132,7 +142,7 @@ Todo el firmware está en [`firmware/`](../firmware/); la carpeta y la pestaña 
 | `50_ble_scale.ino` | Bluetooth: tramas, tara, cola de muestras, vinculación, escaneo y conexión no bloqueante |
 | `55_bookoo_bridge.ino` | Puente BooKoo: servidor GATT, anuncio, envío a la cafetera y sus comandos |
 | `60_power.ino` | Batería, reposo (light sleep) y corte (deep sleep) |
-| `70_ota.ino` | Actualización por Wi-Fi |
+| `70_ota.ino` | Actualización por Bluetooth (servicio OTA y protocolo) |
 | `80_pantalla.ino` | Vistas, menú, visor e icono de batería |
 | `85_controles.ino` | Encoder, multiclic, BOOT y órdenes por serie |
 | `90_app.ino` | `setup()` y `loop()` |
@@ -146,7 +156,7 @@ El IDE de Arduino concatena las pestañas `.ino` detrás de la principal en orde
 
 ---
 
-## 7. Otros documentos
+## 8. Otros documentos
 
 | Documento | Contenido |
 | :--- | :--- |

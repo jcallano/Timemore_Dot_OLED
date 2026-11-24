@@ -104,7 +104,7 @@ void renderSettingsMenuOled() {
     (oledBrightnessLevel == 2) ? "4.BRILLO: ALTO" : ((oledBrightnessLevel == 1) ? "4.BRILLO: MED" : "4.BRILLO: BAJO"),
     bookooBridgeEnabled ? "5.PUENTE BOOKOO: ON" : "5.PUENTE BOOKOO: OFF",
     "6.RE-VINCULAR DOT",
-    "7.ACTUALIZAR OTA",
+    "7.ACTUALIZAR (BLE)",
     "8.APAGAR (SLEEP)",
     "9.SALIR A PANTALLA"
   };

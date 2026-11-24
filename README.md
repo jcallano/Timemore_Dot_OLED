@@ -31,7 +31,7 @@ Además, la pantalla te dice cuánto sigue cayendo en la taza después de que la
 - **Historial de las 10 últimas preparaciones**, con su gráfica, el ratio y el tiempo.
 - **Puente para la Wendougee** (ver arriba).
 - **Funciona con batería** recargable por USB-C, se atenúa y se duerme solo para ahorrar.
-- **Se actualiza por Wi-Fi**, sin cables.
+- **Se actualiza por Bluetooth desde el navegador**, con [una página web](https://jcallano.github.io/Timemore_Dot_OLED/ota/): sin cables ni programas.
 
 Todo se explica en el **[manual de uso](./MANUAL.md)**.
 

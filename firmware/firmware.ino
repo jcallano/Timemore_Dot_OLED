@@ -27,7 +27,7 @@
  *    Open Scale 0xFFF0 -> 0xFFF1, tramas A5 5A) con tara por software.
  * 2. Caudal (g/s): ventana deslizante + mediana de 3 + EMA adaptativa.
  * 3. Cronómetro con Auto-Brew (arranca al detectar vertido tras la tara).
- * 4. Ratio 1:X con la dosis, historial de 10 pour-overs (PSRAM + NVS) y OTA Wi-Fi.
+ * 4. Ratio 1:X con la dosis, historial de 10 pour-overs (PSRAM + NVS) y actualización por Bluetooth.
  *
  * CONTROLES (botón del encoder GPIO 12, o BOOT GPIO 0 con los mismos clics):
  * ----------------------------------------------------------------------------
@@ -46,10 +46,7 @@
 #include <Wire.h>
 #include <Preferences.h>
 #include <NimBLEDevice.h>
-#include <WiFi.h>
-#include <WebServer.h>
 #include <Update.h>
-#include <ArduinoOTA.h>
 #include <esp_sleep.h>
 #include <esp_heap_caps.h>
 #include <esp_chip_info.h>

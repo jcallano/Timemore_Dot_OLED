@@ -125,18 +125,23 @@ Se abre con **3 clics** (o manteniendo pulsado 1,5 s). Gira para moverte y haz 1
 | **4. Brillo** | Bajo / medio / alto |
 | **5. Puente BooKoo: ON/OFF** | Puente con la Wendougee (3.4) |
 | **6. Re-vincular Dot** | Olvida la Dot y busca otra |
-| **7. Actualizar OTA** | Actualizar el firmware por Wi-Fi (3.6) |
+| **7. Actualizar (BLE)** | Actualizar el firmware por Bluetooth (3.6) |
 | **8. Apagar (sleep)** | Reposo inmediato (3.7) |
 | **9. Salir** | Vuelve al pesaje |
 
-### 3.6 Actualización por Wi-Fi (OTA)
+### 3.6 Actualización por Bluetooth
 
-1. *Menú → 7. Actualizar OTA*. El LED se pone magenta y la pantalla muestra la red y su **clave**.
-2. Conéctate desde el móvil o el ordenador a la red **`TIMEMORE-OTA`** con esa clave. Cada display tiene la suya: `TM` + 6 caracteres.
-3. Abre **`http://192.168.4.1`** y sube el archivo `.bin` del firmware.
-4. La pantalla muestra el progreso y, al terminar, el display se reinicia.
+El firmware se actualiza desde el navegador, sin cables ni programas.
 
-**1 clic** cancela. Sin actividad, sale solo a los 5 minutos.
+1. Descarga el archivo **`firmware.ino.bin`** de la [última versión](https://github.com/jcallano/Timemore_Dot_OLED/releases/latest).
+2. En el aparato: *Menú → 7. Actualizar (BLE)*. El LED se pone magenta y la pantalla muestra un **PIN** de 6 cifras, distinto cada vez.
+3. Abre la página **[jcallano.github.io/Timemore_Dot_OLED/ota](https://jcallano.github.io/Timemore_Dot_OLED/ota/)** con **Chrome o Edge** en el ordenador o con **Chrome en Android**. En iPhone, usa la app **Bluefy**.
+4. Elige el archivo, escribe el PIN y pulsa **Actualizar**. En la lista de Bluetooth elige **`TMDot-OTA`**.
+5. La pantalla del aparato y la página muestran el progreso. Tarda menos de un minuto. Al terminar, el aparato comprueba el firmware y se reinicia con la versión nueva.
+
+Si algo falla a mitad, no se instala nada: el aparato sigue con el firmware anterior. Solo quien ve el PIN en la pantalla puede actualizarlo.
+
+**1 clic** en el aparato cancela. Sin actividad, sale solo a los 5 minutos.
 
 ### 3.7 Ahorro de energía
 
@@ -158,7 +163,7 @@ Cuentan como actividad tocar el encoder, cualquier cambio de peso en la Dot y te
 | Rojo intermitente | Sin báscula |
 | Verde | Dot conectada, sin vertido |
 | Cian | Vertido en curso |
-| Magenta | Wendougee conectada por el puente (o modo OTA, con su pantalla) |
+| Magenta | Wendougee conectada por el puente (o actualizando el firmware, con su pantalla) |
 | Destello blanco | Acción confirmada (clic, tara…) |
 
 ---

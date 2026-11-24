@@ -121,9 +121,9 @@ void executeButtonMultiClickAction(uint8_t clicks) {
           uiState = UiState::Main;
           clearScaleFromNVS();
           break;
-        case 6: // ACTUALIZAR FIRMWARE POR WIFI OTA (Web http://192.168.4.1 + ArduinoOTA)
+        case 6: // ACTUALIZAR FIRMWARE POR BLUETOOTH (página Web Bluetooth de docs/ota, PIN en pantalla)
           uiState = UiState::Main;
-          enterWifiOtaMode();
+          enterBleOtaMode();
           break;
         case 7: // APAGAR (reposo)
           uiState = UiState::Main;
