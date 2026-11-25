@@ -50,6 +50,29 @@ void tareAndResetStopwatch() {
 static uint8_t viewerCount() { return viewerShowsShots ? savedShotsCount : savedPoursCount; }
 static int8_t& viewerSlot()   { return viewerShowsShots ? selectedShotSlot : selectedPourSlot; }
 
+// Pantalla TDS (R2): registro destino = el último del modo actual; girar recorre el historial
+static void tdsSelectRecord(int8_t step) {
+  const bool shot = (brewMode == BrewMode::Espresso);
+  const uint8_t n = shot ? savedShotsCount : savedPoursCount;
+  r2TargetIsShot = shot;
+  if (n == 0) { r2TargetId = 0; return; }
+  int idx = n - 1;
+  for (uint8_t i = 0; i < n; i++) {
+    const uint16_t id = shot ? savedShots[i].shotId : psramSavedPours[i].pourId;
+    if (id == r2TargetId) idx = i;
+  }
+  if (step == 0 && r2TargetId == 0) idx = n - 1;
+  idx = ((idx + step) % n + n) % n;
+  r2TargetId = shot ? savedShots[idx].shotId : psramSavedPours[idx].pourId;
+}
+
+static void openTdsScreen() {
+  r2TargetId = 0;
+  tdsSelectRecord(0);
+  uiState = UiState::TdsMeasure;
+  r2Request();
+}
+
 // Al salir de la edición de un valor del menú, guardarlo en la NVS
 static void commitMenuEdit() {
   if (uiState != UiState::MenuEdit) return;
@@ -66,7 +89,8 @@ void executeButtonMultiClickAction(uint8_t clicks) {
 
   // 3 CLICKS: Abrir / Cerrar Menú (o salir del visor del historial)
   if (clicks >= 3) {
-    if (uiState == UiState::PourViewer) {
+    if (uiState == UiState::PourViewer || uiState == UiState::TdsMeasure) {
+      r2CancelMeasure();
       uiState = UiState::Main;
     } else if (inMenu) {
       commitMenuEdit();
@@ -82,6 +106,7 @@ void executeButtonMultiClickAction(uint8_t clicks) {
   // 2 CLICKS: En pantalla principal -> TARA + Reset Cronómetro; en Menú/Visor -> Salir a pantalla principal
   if (clicks == 2) {
     if (uiState != UiState::Main) {
+      r2CancelMeasure();
       commitMenuEdit();
       uiState = UiState::Main;
       triggerLedFlash();
@@ -93,6 +118,12 @@ void executeButtonMultiClickAction(uint8_t clicks) {
 
   // 1 CLICK: En pantalla principal -> Cronómetro / shot; en Menú -> Confirmar opción; en Visor -> Cambiar página
   if (clicks == 1) {
+    if (uiState == UiState::TdsMeasure) {
+      if (r2State == R2State::Measuring)                    r2CancelMeasure();
+      else if (r2State == R2State::Ready && r2TargetId != 0) r2StartMeasure();
+      else                                                  r2Request();
+      return;
+    }
     if (uiState == UiState::PourViewer) {
       if (viewerCount() == 0) {
         uiState = UiState::Main;
@@ -135,6 +166,12 @@ void executeButtonMultiClickAction(uint8_t clicks) {
             menuEditItem = item;
             uiState = UiState::MenuEdit;
           }
+          break;
+        case MI_TDS:           // medida de TDS con el DiFluid R2
+          openTdsScreen();
+          break;
+        case MI_JAR:           // jarra vacía sobre la báscula: su peso (sin nada, la borra)
+          saveServerJar(rawWeightGrams > 20.0f ? static_cast<float>(rawWeightGrams) : 0.0f);
           break;
         case MI_BRIGHT:
           oledBrightnessLevel = (oledBrightnessLevel + 1) % 3;
@@ -193,7 +230,9 @@ void handleRotaryEncoder() {
     uiNeedsImmediateRedraw = true;
     registerUserOrScaleActivity();
 
-    if (uiState == UiState::PourViewer) {
+    if (uiState == UiState::TdsMeasure) {
+      if (r2State != R2State::Measuring) tdsSelectRecord(delta > 0 ? 1 : -1);
+    } else if (uiState == UiState::PourViewer) {
       const uint8_t n = viewerCount();
       if (n > 0) {
         int8_t& slot = viewerSlot();
@@ -387,6 +426,11 @@ void handleSerialCommands() {
     } else if (c == 'm' || c == 'M') {
       uiState = UiState::Menu;
       menuSelectedIndex = 0;
+      pourSavedBannerUntilMs = 0;
+      uiNeedsImmediateRedraw = true;
+    } else if (c == 'y' || c == 'Y') {
+      // Pantalla TDS (R2) del último registro del modo actual
+      openTdsScreen();
       pourSavedBannerUntilMs = 0;
       uiNeedsImmediateRedraw = true;
     } else if (c == 'q' || c == 'Q') {

@@ -345,7 +345,12 @@ bool isTimemoreAdvertisedDevice(const NimBLEAdvertisedDevice* dev) {
   return false;
 }
 
+// Definidas en 58_difluid_r2.ino
+void handleR2Advert(const NimBLEAdvertisedDevice* dev);
+void r2OnStackShutdown();
+
 void handleScannedDevice(const NimBLEAdvertisedDevice* dev) {
+  handleR2Advert(dev);   // refractómetro DiFluid R2 (solo mientras se busca)
   if (!dev || scaleConnected || doConnectToScale) return;
   if (!isTimemoreAdvertisedDevice(dev)) return;
   if (!dev->isConnectable()) return;
@@ -733,6 +738,7 @@ void shutdownBleStack() {
   pScaleNotifyChar = nullptr;
   pScaleWriteChar  = nullptr;
   NimBLEDevice::deinit(true); // borra también el cliente
+  r2OnStackShutdown();        // y el del R2
   pScaleClient     = nullptr;
   bleConnectPhase  = BLE_IDLE;
   if (weightQueue != nullptr) xQueueReset(weightQueue);

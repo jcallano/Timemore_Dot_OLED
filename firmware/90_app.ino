@@ -39,6 +39,8 @@ void setup() {
 
   initPsramAndLoadPours();
   loadEspressoSettingsAndShots();   // modo, receta de espresso e historial de shots
+  loadBrewExtras();                 // TDS y bebida de cada registro, jarra
+  loadR2Settings();                 // refractómetro DiFluid R2 vinculado
   initOledDisplay();
   updateBatteryAndPowerManagement();
   renderOledScreen();
@@ -93,6 +95,8 @@ void loop() {
     lastScanAttemptMs = millis();
   }
   serviceBleConnection();
+  serviceR2();               // DiFluid R2: conexión a demanda y medida de TDS
+  serviceBeverageCapture();  // bebida del pour-over al quitar el dripper (con la jarra registrada)
 
   // 3b. Confirmar la báscula recién conectada: guardar su MAC en NVS al llegar el primer peso válido;
   //     si en 10 s no llega ninguno y no es la báscula ya vinculada, desconectar y descartarla.

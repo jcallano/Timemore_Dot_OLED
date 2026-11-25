@@ -65,6 +65,8 @@
 #include "src/flow_engine.h"
 #include "src/selftest.h"
 #include "src/bookoo_protocol.h"
+#include "src/difluid_protocol.h"
+#include "src/tds_sampler.h"
 
 // ============================================================================
 // WRAPPER USB-SERIAL/JTAG (HWCDC) 100% NO BLOQUEANTE CUANDO EL MONITOR ESTÁ CERRADO
@@ -403,7 +405,8 @@ static constexpr uint8_t BOOKOO_SCREEN_VIEW = NUM_SCREEN_VIEWS;  // vista extra 
 //   Menu         -> menú de ajustes (3 clics); el giro mueve el cursor
 //   MenuEdit     -> editando un valor del menú (dosis, ratio, tiempo); el giro lo ajusta
 //   PourViewer   -> visor del historial (pour-overs o shots, según viewerShowsShots)
-enum class UiState : uint8_t { Main, Menu, MenuEdit, PourViewer };
+//   TdsMeasure   -> medida de TDS con el DiFluid R2 (58_difluid_r2.ino) para un registro del historial
+enum class UiState : uint8_t { Main, Menu, MenuEdit, PourViewer, TdsMeasure };
 UiState uiState                          = UiState::Main;
 
 // Modo de preparación (Menú -> 1. Modo). Se guarda en la NVS.
@@ -414,9 +417,9 @@ BrewMode brewMode                        = BrewMode::PourOver;
 // modo: buildMenuItems() (80_pantalla.ino) rellena la lista con estos identificadores.
 enum MenuItemId : uint8_t {
   MI_MODE, MI_HISTORY, MI_AUTOTIMER, MI_DOSE, MI_RATIO, MI_TARGET_TIME,
-  MI_BRIGHT, MI_BRIDGE, MI_RELINK, MI_UPDATE, MI_SLEEP, MI_EXIT
+  MI_BRIGHT, MI_BRIDGE, MI_RELINK, MI_UPDATE, MI_SLEEP, MI_EXIT, MI_TDS, MI_JAR
 };
-static constexpr uint8_t MENU_MAX_ITEMS  = 12;
+static constexpr uint8_t MENU_MAX_ITEMS  = 14;
 int8_t menuSelectedIndex                 = 0;
 
 // Parámetros de barista configurables desde el Encoder
@@ -532,6 +535,18 @@ volatile uint32_t bookooPendingCmds           = 0;     // bits de comandos de la
 volatile uint32_t bookooFramesSent            = 0;
 volatile uint32_t bookooCmdsRx                = 0;
 char bookooAdvName[24]                        = "BOOKOO_SC_U 000000";
+
+// TDS y bebida de cada registro (46_extraccion.ino)
+struct BrewExtra {
+  uint16_t id;           // pourId o shotId (0 = libre)
+  uint16_t tdsPacked;    // tds::pack (0 = sin medida)
+  uint16_t beverageX10;  // bebida medida en décimas de g (0 = sin medida; solo pour-over)
+  uint16_t reserved;
+};
+static_assert(sizeof(BrewExtra) == 8, "BrewExtra cambió de tamaño");
+
+// Estado de la conexión con el DiFluid R2 (58_difluid_r2.ino)
+enum class R2State : uint8_t { Off, Scanning, Connecting, Ready, Measuring, Failed };
 
 // Ancla para el generador de prototipos del IDE de Arduino: los prototipos automáticos de todas las
 // pestañas se insertan justo antes de la PRIMERA función de esta pestaña. Si no hubiera ninguna, los
