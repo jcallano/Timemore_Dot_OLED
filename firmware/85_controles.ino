@@ -47,13 +47,29 @@ void tareAndResetStopwatch() {
 }
 
 // Historial que muestra el visor: shots o pour-overs
-static uint8_t viewerCount() { return viewerShowsShots ? savedShotsCount : savedPoursCount; }
-static int8_t& viewerSlot()   { return viewerShowsShots ? selectedShotSlot : selectedPourSlot; }
+static uint8_t viewerCount() {
+  if (viewerShowsLots) return fermentLotsCount;
+  return viewerShowsShots ? savedShotsCount : savedPoursCount;
+}
+static int8_t& viewerSlot() {
+  if (viewerShowsLots) return selectedLotSlot;
+  return viewerShowsShots ? selectedShotSlot : selectedPourSlot;
+}
+
+// Abre el visor del historial del modo actual en el último registro
+static void openHistoryViewer() {
+  uiState                 = UiState::PourViewer;
+  viewerShowsLots         = (brewMode == BrewMode::Fermento);
+  viewerShowsShots        = (brewMode == BrewMode::Espresso);
+  pourViewerShowStatsPage = false;
+  if (viewerCount() > 0) viewerSlot() = static_cast<int8_t>(viewerCount() - 1);
+}
 
 // Al salir de la edición de un valor del menú, guardarlo en la NVS
 static void commitMenuEdit() {
   if (uiState != UiState::MenuEdit) return;
-  if (menuEditItem == MI_DOSE && brewMode == BrewMode::PourOver) saveDoseToNVS();
+  if (menuEditItem == MI_SALT_PCT) saveFermentSettings();
+  else if (menuEditItem == MI_DOSE && brewMode == BrewMode::PourOver) saveDoseToNVS();
   else saveEspressoSettings();
 }
 
@@ -96,6 +112,8 @@ void executeButtonMultiClickAction(uint8_t clicks) {
     if (uiState == UiState::PourViewer) {
       if (viewerCount() == 0) {
         uiState = UiState::Main;
+      } else if (viewerShowsLots) {
+        fermentAddReading();   // lotes: 1 clic guarda la lectura actual de la sonda
       } else {
         // 1 Click dentro del visor: alternar entre GRÁFICA y FICHA DE DATOS
         pourViewerShowStatsPage = !pourViewerShowStatsPage;
@@ -108,7 +126,7 @@ void executeButtonMultiClickAction(uint8_t clicks) {
       switch (item) {
         case MI_MODE:
         {
-          setBrewMode(brewMode == BrewMode::Espresso ? BrewMode::PourOver : BrewMode::Espresso);
+          setBrewMode(nextBrewMode(brewMode));
           // Las opciones cambian con el modo: el cursor sigue sobre "Modo"
           uint8_t nids[MENU_MAX_ITEMS];
           const uint8_t nn = buildMenuItems(nids);
@@ -116,10 +134,7 @@ void executeButtonMultiClickAction(uint8_t clicks) {
           break;
         }
         case MI_HISTORY:   // historial del modo actual
-          uiState                 = UiState::PourViewer;
-          viewerShowsShots        = (brewMode == BrewMode::Espresso);
-          pourViewerShowStatsPage = false;
-          if (viewerCount() > 0) viewerSlot() = static_cast<int8_t>(viewerCount() - 1);
+          openHistoryViewer();
           break;
         case MI_AUTOTIMER:
           autoTimerEnabled = !autoTimerEnabled;
@@ -128,6 +143,7 @@ void executeButtonMultiClickAction(uint8_t clicks) {
         case MI_DOSE:          // valores editables: 1 clic entra, girar ajusta, 1 clic guarda
         case MI_RATIO:
         case MI_TARGET_TIME:
+        case MI_SALT_PCT:
           if (uiState == UiState::MenuEdit) {
             commitMenuEdit();
             uiState = UiState::Menu;
@@ -161,6 +177,8 @@ void executeButtonMultiClickAction(uint8_t clicks) {
           uiState = UiState::Main;
           break;
       }
+    } else if (brewMode == BrewMode::Fermento) {
+      fermentClick();          // salmuera: fija la base / guarda el lote
     } else if (brewMode == BrewMode::Espresso) {
       espressoClick();         // shot: arranca / corta
     } else {
@@ -203,7 +221,9 @@ void handleRotaryEncoder() {
       }
     } else if (uiState == UiState::MenuEdit) {
       const float d = static_cast<float>(delta);
-      if (menuEditItem == MI_DOSE && brewMode == BrewMode::PourOver) {
+      if (menuEditItem == MI_SALT_PCT) {
+        fermentSaltPct = constrain(roundf((fermentSaltPct + d * 0.1f) * 10.0f) / 10.0f, SALT_PCT_MIN, SALT_PCT_MAX);
+      } else if (menuEditItem == MI_DOSE && brewMode == BrewMode::PourOver) {
         coffeeDoseGrams = constrain(coffeeDoseGrams + d * 0.5f, DOSE_MIN_G, DOSE_MAX_G);
       } else if (menuEditItem == MI_DOSE) {
         espDoseGrams = constrain(roundf((espDoseGrams + d * 0.1f) * 10.0f) / 10.0f, ESP_DOSE_MIN_G, ESP_DOSE_MAX_G);
@@ -349,6 +369,21 @@ static void dumpOledFramebuffer() {
   selfTestPrint("[FB] END");
 }
 
+// Número decimal que sigue a una orden (espera hasta 300 ms entre dígitos)
+static uint32_t readSerialNumber() {
+  uint32_t v = 0;
+  unsigned long t0 = millis();
+  while ((millis() - t0) < 300UL) {
+    if (Serial.available() <= 0) { delay(1); continue; }
+    const int ch = Serial.peek();
+    if (ch < 0x30 || ch > 0x39) break;
+    Serial.read();
+    v = v * 10UL + static_cast<uint32_t>(ch - 0x30);
+    t0 = millis();
+  }
+  return v;
+}
+
 void handleSerialCommands() {
   while (Serial.available() > 0) {
     char c = static_cast<char>(Serial.read());
@@ -362,8 +397,8 @@ void handleSerialCommands() {
       // Pour-over de demostración (solo RAM) y su banner de guardado
       injectDemoPourOver();
     } else if (c == 'k' || c == 'K') {
-      // Cambiar de modo (pour-over <-> espresso), como Menú -> 1. Modo
-      setBrewMode(brewMode == BrewMode::Espresso ? BrewMode::PourOver : BrewMode::Espresso);
+      // Siguiente modo (pour-over -> espresso -> fermento), como Menú -> Modo
+      setBrewMode(nextBrewMode(brewMode));
       uiNeedsImmediateRedraw = true;
     } else if (c == 'e' || c == 'E') {
       // Demostración en vivo de un espresso con la receta actual
@@ -378,10 +413,8 @@ void handleSerialCommands() {
       uiNeedsImmediateRedraw = true;
     } else if (c == 'g' || c == 'G' || c == 'i' || c == 'I') {
       // Visor del historial en el último pour-over: 'g' gráfica, 'i' ficha
-      uiState = UiState::PourViewer;
-      viewerShowsShots = (brewMode == BrewMode::Espresso);
+      openHistoryViewer();
       pourViewerShowStatsPage = (c == 'i' || c == 'I');
-      if (viewerCount() > 0) viewerSlot() = static_cast<int8_t>(viewerCount() - 1);
       pourSavedBannerUntilMs = 0;
       uiNeedsImmediateRedraw = true;
     } else if (c == 'm' || c == 'M') {
@@ -389,6 +422,12 @@ void handleSerialCommands() {
       menuSelectedIndex = 0;
       pourSavedBannerUntilMs = 0;
       uiNeedsImmediateRedraw = true;
+    } else if (c == 'f' || c == 'F') {
+      // Lectura simulada de la sonda de pH y temperatura
+      probeInjectSimulated();
+    } else if (c == 'z' || c == 'Z') {
+      // Poner el reloj: z<segundos desde 1970, UTC>  (p. ej. en PowerShell: [DateTimeOffset]::UtcNow.ToUnixTimeSeconds())
+      fermentSetClock(readSerialNumber());
     } else if (c == 'q' || c == 'Q') {
       // Sonda de la cola de la Dot: el tiempo hasta la respuesta es el tamaño de su cola (DOT_COLA_BLE.md)
       sendQueueProbe();

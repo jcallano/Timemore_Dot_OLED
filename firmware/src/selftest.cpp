@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "accessory_protocol.h"
 #include "bookoo_protocol.h"
 #include "flow_engine.h"
 #include "timemore_protocol.h"
@@ -253,6 +254,35 @@ void testBookoo() {
   check(bkproto::buildScanResponse(adv, sizeof(adv), name) == 24, "BooKoo: respuesta al escaneo de 24 bytes");
 }
 
+void testAccessory() {
+  accproto::Reading r;
+  r.type = accproto::TYPE_PH_TEMP;
+  r.seq = 42;
+  r.flags = accproto::FLAG_TEMP_VALID | accproto::FLAG_PH_VALID | accproto::FLAG_STABLE;
+  r.tempC = 21.37f;
+  r.ph = 3.821f;
+  r.phMv = 181.4f;
+  r.batteryPct = 87;
+  r.calAgeDays = 5;
+  uint8_t a[accproto::ADV_LEN];
+  check(accproto::buildAdvert(r, a, sizeof(a)) == accproto::ADV_LEN && a[0] == 0xFF && a[1] == 0xFF &&
+        a[2] == 'T' && a[3] == 'D', "Accesorio: anuncio de 16 bytes con Company ID 0xFFFF y firma TD");
+  accproto::Reading p;
+  check(accproto::parseAdvert(a, sizeof(a), p) && p.seq == 42 && p.tempValid() && p.phValid() &&
+        near(p.tempC, 21.37f, 0.006f) && near(p.ph, 3.821f, 0.0006f) && near(p.phMv, 181.4f, 0.06f) &&
+        p.batteryPct == 87 && p.calAgeDays == 5, "Accesorio: ida y vuelta de pH, temperatura y mV");
+  r.tempC = -4.5f;
+  r.phMv = -120.3f;
+  accproto::buildAdvert(r, a, sizeof(a));
+  check(accproto::parseAdvert(a, sizeof(a), p) && near(p.tempC, -4.5f, 0.006f) && near(p.phMv, -120.3f, 0.06f),
+        "Accesorio: temperatura y mV negativos");
+  a[11] = 0x40;  // pH 16.4: imposible
+  check(accproto::parseAdvert(a, sizeof(a), p) && !p.phValid(), "Accesorio: pH > 14 se marca no valido");
+  a[2] = 'X';
+  check(!accproto::parseAdvert(a, sizeof(a), p), "Accesorio: firma ajena ignorada");
+  check(!accproto::parseAdvert(a, 10, p), "Accesorio: anuncio corto ignorado");
+}
+
 }  // namespace
 
 int runSelfTests(void (*print)(const char* line)) {
@@ -262,6 +292,7 @@ int runSelfTests(void (*print)(const char* line)) {
   testProtocol();
   testFlowEngine();
   testBookoo();
+  testAccessory();
   char line[80];
   snprintf(line, sizeof(line), "[TEST] Resultado: %d OK, %d FALLOS", g_pass, g_fail);
   g_print(line);

@@ -102,6 +102,8 @@ uint8_t buildMenuItems(uint8_t* ids) {
     ids[n++] = MI_DOSE;
     ids[n++] = MI_RATIO;
     ids[n++] = MI_TARGET_TIME;
+  } else if (brewMode == BrewMode::Fermento) {
+    ids[n++] = MI_SALT_PCT;
   } else {
     ids[n++] = MI_DOSE;
     ids[n++] = MI_AUTOTIMER;
@@ -122,9 +124,11 @@ static void menuItemLabel(uint8_t id, uint8_t num, bool editing, char* out, size
   const bool esp = (brewMode == BrewMode::Espresso);
   const char* mark = editing ? " <" : "";
   switch (id) {
-    case MI_MODE:        snprintf(out, cap, "%u.MODO: %s", num, esp ? "ESPRESSO" : "POUR-OVER"); break;
+    case MI_MODE:        snprintf(out, cap, "%u.MODO: %s", num, brewModeName(brewMode)); break;
+    case MI_SALT_PCT:    snprintf(out, cap, "%u.SAL: %.1f%%%s", num, fermentSaltPct, mark); break;
     case MI_HISTORY:
-      if (esp) snprintf(out, cap, "%u.SHOTS (%u/%u)", num, savedShotsCount, MAX_SAVED_SHOTS);
+      if (brewMode == BrewMode::Fermento) snprintf(out, cap, "%u.LOTES (%u/%u)", num, fermentLotsCount, MAX_FERMENT_LOTS);
+      else if (esp) snprintf(out, cap, "%u.SHOTS (%u/%u)", num, savedShotsCount, MAX_SAVED_SHOTS);
       else     snprintf(out, cap, "%u.POUR-OVERS (%u/%u)", num, savedPoursCount, MAX_SAVED_POURS);
       break;
     case MI_AUTOTIMER:   snprintf(out, cap, "%u.AUTO-TMR: %s", num, autoTimerEnabled ? "ON" : "OFF"); break;
@@ -313,6 +317,139 @@ void renderShotViewerOled() {
   }
 }
 
+// ============================================================================
+// MODO FERMENTO: calculadora de salmuera y visor de lotes
+// ============================================================================
+void drawLocalBatteryIcon(int x, int y);
+
+// Línea superior: la sonda (pH y temperatura) si hay lectura reciente; si no, el % de sal
+static void drawFermentTopBar() {
+  accproto::Reading pr;
+  char top[24];
+  if (probeGetFresh(pr, nullptr) && (pr.phValid() || pr.tempValid())) {
+    char ph[10] = "PH --", tc[10] = "";
+    if (pr.phValid()) snprintf(ph, sizeof(ph), "PH %.2f", pr.ph);
+    if (pr.tempValid()) snprintf(tc, sizeof(tc), "%.1fC", pr.tempC);
+    snprintf(top, sizeof(top), "%s %s%s", ph, tc, (pr.flags & accproto::FLAG_STABLE) ? "" : "~");
+  } else if (!scaleConnected) {
+    snprintf(top, sizeof(top), "BUSCANDO DOT...");
+  } else {
+    snprintf(top, sizeof(top), "FERMENTO");
+  }
+  oledDrawText(0, 1, top, 1);
+  char sp[10];
+  snprintf(sp, sizeof(sp), "%.1f%%", fermentSaltPct);
+  const int right = localBattSensorPresent ? 112 : 128;
+  oledDrawText(right - 6 * static_cast<int>(strlen(sp)), 1, sp, 1);
+  drawLocalBatteryIcon(115, 1);
+  oledDrawHLine(0, 10, 128, true);
+}
+
+static void drawFermentNotice(unsigned long now) {
+  if (now >= fermentNoticeUntilMs) return;
+  oledFillRect(0, 52, 128, 12, true);
+  const int len = static_cast<int>(strlen(fermentNotice));
+  oledDrawText((128 - 6 * len) / 2, 54, fermentNotice, 1, true);
+}
+
+// Paso Base:
+//   PH 3.82 21.4C      2.5%      sonda | % de sal
+//   1000.0 G                     lo que hay en la báscula (verduras + agua)
+//   SAL 2.5% = 25.0 G            sal que hará falta
+//   1C:FIJAR    2C:TARA
+// Paso Sal:
+//     18.6 G                     sal echada
+//   [#########     ]             progreso hasta el objetivo
+//   OBJ 25.0G FALTA 6.4G
+//   BASE 1000G  1C:GUARDA
+void renderFermentViewOled() {
+  const unsigned long now = millis();
+  drawFermentTopBar();
+  float w = currentWeightGrams;
+  if (fabsf(w) < 0.05f) w = 0.0f;
+  char wb[12];
+  if (w >= 1000.0f) snprintf(wb, sizeof(wb), "%5.0f", w);
+  else              snprintf(wb, sizeof(wb), "%5.1f", w);
+  oledDrawText(4, 14, wb, 3);
+  oledDrawText(110, 21, "G", 2);
+
+  char l1[24], l2[24];
+  if (fermentStep == FermentStep::Base) {
+    oledDrawHLine(0, 41, 128, true);
+    snprintf(l1, sizeof(l1), "SAL %.1f%% = %.1f G", fermentSaltPct, w > 0.0f ? fermentSaltForBase(w) : 0.0f);
+    oledDrawText(0, 45, l1, 1);
+    oledDrawText(0, 55, "1C:FIJAR    2C:TARA", 1);
+  } else {
+    const float target = fermentSaltTargetGrams;
+    const float tol    = fermentSaltTolerance();
+    oledDrawRect(0, 37, 128, 7, true);
+    int fill = (target > 0.01f) ? static_cast<int>((w / target) * 124.0f) : 0;
+    if (fill < 0) fill = 0;
+    if (fill > 124) fill = 124;
+    const bool over = (w > target + tol);
+    if (fill > 0 && !(over && ((now / 200UL) % 2UL) == 0)) oledFillRect(2, 39, fill, 3, true);
+    if (w < target - tol) snprintf(l1, sizeof(l1), "OBJ %.1fG FALTA %.1fG", target, target - w);
+    else if (!over)       snprintf(l1, sizeof(l1), "OBJ %.1fG  LISTO!", target);
+    else                  snprintf(l1, sizeof(l1), "OBJ %.1fG SOBRA %.1fG", target, w - target);
+    oledDrawText(0, 47, l1, 1);
+    snprintf(l2, sizeof(l2), "BASE %.0fG  1C:GUARDA", fermentBaseGrams);
+    oledDrawText(0, 56, l2, 1);
+  }
+  drawFermentNotice(now);
+}
+
+// Visor de lotes: receta, inicio y las 2 últimas lecturas. 1 clic añade la lectura de la sonda.
+void renderLotViewerOled() {
+  const unsigned long now = millis();
+  oledFillRect(0, 0, 128, 11, true);
+  if (fermentLotsCount == 0) {
+    oledDrawText(4, 2, "LOTES DE FERMENTO", 1, true);
+    oledDrawText(10, 24, "SIN LOTES", 1);
+    oledDrawText(10, 36, "GUARDADOS", 1);
+    oledDrawText(10, 52, "CLICK: VOLVER", 1);
+    return;
+  }
+  if (selectedLotSlot < 0) selectedLotSlot = 0;
+  if (selectedLotSlot >= fermentLotsCount) selectedLotSlot = static_cast<int8_t>(fermentLotsCount - 1);
+  const FermentLot& lot = fermentLots[selectedLotSlot];
+  const float realPct = lot.baseGrams > 0.0f ? lot.saltGrams * 100.0f / lot.baseGrams : 0.0f;
+
+  char l[28];
+  snprintf(l, sizeof(l), "LOTE #%u  SAL %.2f%%", lot.lotId, realPct);
+  oledDrawText(2, 2, l, 1, true);
+  snprintf(l, sizeof(l), "BASE:%.0fG SAL:%.1fG", lot.baseGrams, lot.saltGrams);
+  oledDrawText(0, 14, l, 1);
+  char d[8];
+  formatShortDate(lot.startEpoch, d, sizeof(d));
+  if (lot.startEpoch != 0 && clockIsSet()) {
+    snprintf(l, sizeof(l), "INICIO %s  DIA %lu", d,
+             static_cast<unsigned long>((static_cast<uint32_t>(time(nullptr)) - lot.startEpoch) / 86400UL));
+  } else {
+    snprintf(l, sizeof(l), "INICIO %s", lot.startEpoch != 0 ? d : "(SIN HORA)");
+  }
+  oledDrawText(0, 24, l, 1);
+
+  if (lot.readingsCount == 0) {
+    oledDrawText(0, 36, "SIN LECTURAS", 1);
+  } else {
+    const uint8_t first = lot.readingsCount > 2 ? lot.readingsCount - 2 : 0;
+    uint8_t row = 0;
+    for (uint8_t i = first; i < lot.readingsCount; i++, row++) {
+      const FermentReading& fr = lot.readings[i];
+      char tag[8], ph[8] = "--", tc[8] = "";
+      fermentReadingTag(lot, i, tag, sizeof(tag));
+      if (fr.phX100 != FERM_NO_DATA) snprintf(ph, sizeof(ph), "%.2f", fr.phX100 / 100.0f);
+      if (fr.tempX10 != FERM_NO_DATA) snprintf(tc, sizeof(tc), "%.1fC", fr.tempX10 / 10.0f);
+      snprintf(l, sizeof(l), "%-4s PH %s %s", tag, ph, tc);
+      oledDrawText(0, 34 + row * 9, l, 1);
+    }
+  }
+  oledDrawHLine(0, 52, 128, true);
+  snprintf(l, sizeof(l), "1C:+LECTURA  %d/%u", selectedLotSlot + 1, fermentLotsCount);
+  oledDrawText(0, 55, l, 1);
+  drawFermentNotice(now);
+}
+
 // Icono de 13x7 px de la batería del propio display (18650 vía divisor en GPIO 4).
 // - Relleno proporcional al % ; parpadea por debajo del 10 %.
 // - Cargando (pin CHRG del TP4056 en LOW o > 4.21 V): relleno animado.
@@ -463,6 +600,20 @@ void renderOledScreen() {
     oledDrawRect(0, 0, 128, 64, true);
     oledFillRect(2, 2, 124, 14, true);
     char bHdr[22];
+    if (bannerIsLot) {
+      snprintf(bHdr, sizeof(bHdr), "LOTE #%u GUARDADO!", lastSavedLotId);
+      oledDrawText(12, 5, bHdr, 1, true);
+      if (fermentLotsCount > 0) {
+        const FermentLot& lot = fermentLots[fermentLotsCount - 1];
+        char l1[24], l2[24];
+        snprintf(l1, sizeof(l1), "BASE:%.0fG SAL:%.1fG", lot.baseGrams, lot.saltGrams);
+        snprintf(l2, sizeof(l2), "SALMUERA:%.2f%%", lot.baseGrams > 0.0f ? lot.saltGrams * 100.0f / lot.baseGrams : 0.0f);
+        oledDrawText(4, 24, l1, 1);
+        oledDrawText(4, 40, l2, 1);
+      }
+      oledFlush();
+      return;
+    }
     if (bannerIsShot) {
       snprintf(bHdr, sizeof(bHdr), "SHOT #%u GUARDADO!", lastSavedShotId);
       oledDrawText(12, 5, bHdr, 1, true);
@@ -494,7 +645,8 @@ void renderOledScreen() {
   }
 
   if (uiState == UiState::PourViewer) {
-    if (viewerShowsShots) renderShotViewerOled();
+    if (viewerShowsLots)       renderLotViewerOled();
+    else if (viewerShowsShots) renderShotViewerOled();
     else                  renderPourOverViewerOled();
     oledFlush();
     return;
@@ -514,6 +666,13 @@ void renderOledScreen() {
       return;
     }
     currentScreenView = 0;
+  }
+
+  // Modo fermento: la vista 0 es la calculadora de salmuera
+  if (brewMode == BrewMode::Fermento && currentScreenView == 0) {
+    renderFermentViewOled();
+    oledFlush();
+    return;
   }
 
   // Modo espresso: la vista 0 es la del shot (las vistas 1 a 3 son comunes)

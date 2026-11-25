@@ -65,6 +65,7 @@
 #include "src/flow_engine.h"
 #include "src/selftest.h"
 #include "src/bookoo_protocol.h"
+#include "src/accessory_protocol.h"
 
 // ============================================================================
 // WRAPPER USB-SERIAL/JTAG (HWCDC) 100% NO BLOQUEANTE CUANDO EL MONITOR ESTÁ CERRADO
@@ -84,6 +85,9 @@ struct NonBlockingUsbSerial {
   }
   int available() {
     return ::Serial.available();
+  }
+  int peek() {
+    return ::Serial.peek();
   }
   int read() {
     return ::Serial.read();
@@ -402,19 +406,19 @@ static constexpr uint8_t BOOKOO_SCREEN_VIEW = NUM_SCREEN_VIEWS;  // vista extra 
 //   Main         -> vistas de pesaje (el giro cambia de vista)
 //   Menu         -> menú de ajustes (3 clics); el giro mueve el cursor
 //   MenuEdit     -> editando un valor del menú (dosis, ratio, tiempo); el giro lo ajusta
-//   PourViewer   -> visor del historial (pour-overs o shots, según viewerShowsShots)
+//   PourViewer   -> visor del historial (pour-overs, shots o lotes: viewerShowsShots / viewerShowsLots)
 enum class UiState : uint8_t { Main, Menu, MenuEdit, PourViewer };
 UiState uiState                          = UiState::Main;
 
-// Modo de preparación (Menú -> 1. Modo). Se guarda en la NVS.
-enum class BrewMode : uint8_t { PourOver = 0, Espresso = 1 };
+// Modo de uso (Menú -> Modo). Se guarda en la NVS. Fermento: calculadora de salmuera y lotes (47_fermento.ino).
+enum class BrewMode : uint8_t { PourOver = 0, Espresso = 1, Fermento = 2 };
 BrewMode brewMode                        = BrewMode::PourOver;
 
 // Menú interactivo controlado con el Encoder (se abre con 3 clics en ENC_SW). Sus opciones dependen del
 // modo: buildMenuItems() (80_pantalla.ino) rellena la lista con estos identificadores.
 enum MenuItemId : uint8_t {
   MI_MODE, MI_HISTORY, MI_AUTOTIMER, MI_DOSE, MI_RATIO, MI_TARGET_TIME,
-  MI_BRIGHT, MI_BRIDGE, MI_RELINK, MI_UPDATE, MI_SLEEP, MI_EXIT
+  MI_BRIGHT, MI_BRIDGE, MI_RELINK, MI_UPDATE, MI_SLEEP, MI_EXIT, MI_SALT_PCT
 };
 static constexpr uint8_t MENU_MAX_ITEMS  = 12;
 int8_t menuSelectedIndex                 = 0;
@@ -447,6 +451,8 @@ bool shotByMachine                       = false;
 bool shotAutoStopped                     = false;
 bool bannerIsShot                        = false; // el aviso de guardado es de un shot (no de un pour-over)
 bool viewerShowsShots                    = false; // el visor del historial muestra shots
+bool viewerShowsLots                     = false; // el visor muestra los lotes de fermento (tiene prioridad)
+bool bannerIsLot                         = false; // el aviso de guardado es de un lote de fermento
 
 // Buffer circular de 64 muestras para la gráfica en vivo de Flow Rate (Vista 3)
 uint8_t flowGraphHistory[64]             = {0};
@@ -532,6 +538,41 @@ volatile uint32_t bookooPendingCmds           = 0;     // bits de comandos de la
 volatile uint32_t bookooFramesSent            = 0;
 volatile uint32_t bookooCmdsRx                = 0;
 char bookooAdvName[24]                        = "BOOKOO_SC_U 000000";
+
+// ============================================================================
+// MODO FERMENTO: lotes de salmuera (47_fermento.ino)
+// ============================================================================
+static constexpr uint8_t  MAX_FERMENT_LOTS   = 10;
+static constexpr uint8_t  MAX_LOT_READINGS   = 16;
+static constexpr float    SALT_PCT_MIN       = 0.5f;
+static constexpr float    SALT_PCT_MAX       = 10.0f;
+static constexpr float    FERMENT_MIN_BASE_G = 20.0f;   // menos que esto no es un fermento
+static constexpr float    FERMENT_MIN_SALT_G = 0.3f;
+static constexpr int16_t  FERM_NO_DATA       = INT16_MIN;
+static constexpr uint32_t CLOCK_VALID_EPOCH  = 1700000000UL;  // nov. 2023: antes de esto, sin hora
+static const char*        NVS_FERM_NAMESPACE = "tmdot_ferm";
+
+struct FermentReading {
+  uint32_t epoch;      // 0 = sin hora
+  int16_t  phX100;     // FERM_NO_DATA = sin dato
+  int16_t  tempX10;    // FERM_NO_DATA = sin dato
+  uint16_t brixX10;    // 0xFFFF = sin dato (reservado para el DiFluid R2)
+  uint16_t flags;      // reservado
+};
+static_assert(sizeof(FermentReading) == 12, "FermentReading cambió de tamaño");
+
+struct FermentLot {
+  uint32_t magic;          // 0x4645524D ("FERM")
+  uint16_t lotId;
+  uint16_t saltPctX100;    // % de sal de la receta x 100
+  float    baseGrams;      // verduras + agua
+  float    saltGrams;      // sal que se echó de verdad
+  uint32_t startEpoch;     // 0 = sin hora
+  uint8_t  readingsCount;
+  uint8_t  reserved[3];
+  FermentReading readings[MAX_LOT_READINGS];
+};
+static_assert(sizeof(FermentLot) == 216, "FermentLot cambió de tamaño: invalidaría los lotes guardados");
 
 // Ancla para el generador de prototipos del IDE de Arduino: los prototipos automáticos de todas las
 // pestañas se insertan justo antes de la PRIMERA función de esta pestaña. Si no hubiera ninguna, los

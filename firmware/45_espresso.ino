@@ -16,6 +16,7 @@
 
 // Definidas en pestañas posteriores
 void registerUserOrScaleActivity();
+void fermentResetStep();
 
 static constexpr uint8_t  MAX_SAVED_SHOTS       = 10;
 static constexpr uint8_t  SHOT_GRAPH_POINTS     = 60;     // 2 px por punto en la OLED
@@ -57,6 +58,17 @@ static unsigned long shotSettleUntilMs = 0;
 static float shotPeakFlow              = 0.0f;
 static bool espArmed                   = false;  // arranque con la primera gota armado por una tara (2 clics)
 
+const char* brewModeName(BrewMode m) {
+  return m == BrewMode::Espresso ? "ESPRESSO" : (m == BrewMode::Fermento ? "FERMENTO" : "POUR-OVER");
+}
+
+// Siguiente modo del menú: pour-over -> espresso -> fermento -> pour-over
+BrewMode nextBrewMode(BrewMode m) {
+  if (m == BrewMode::PourOver) return BrewMode::Espresso;
+  if (m == BrewMode::Espresso) return BrewMode::Fermento;
+  return BrewMode::PourOver;
+}
+
 float espressoTargetGrams() { return espDoseGrams * espRatio; }
 bool espressoArmed() { return espArmed; }
 
@@ -74,7 +86,8 @@ float espressoCutGrams() {
 void loadEspressoSettingsAndShots() {
   Preferences p;
   p.begin(NVS_POUR_NAMESPACE, true);
-  brewMode          = (p.getUChar("mode", 0) == 1) ? BrewMode::Espresso : BrewMode::PourOver;
+  const uint8_t m   = p.getUChar("mode", 0);
+  brewMode          = (m == 1) ? BrewMode::Espresso : (m == 2 ? BrewMode::Fermento : BrewMode::PourOver);
   espDoseGrams      = p.getFloat("esp_dose", 18.0f);
   espRatio          = p.getFloat("esp_ratio", 2.0f);
   espTargetSec      = p.getUChar("esp_tsec", 28);
@@ -114,14 +127,14 @@ void loadEspressoSettingsAndShots() {
     selectedShotSlot = static_cast<int8_t>(savedShotsCount - 1);
   }
   Serial.printf("[ESPRESSO] Modo %s | receta %.1f g x 1:%.1f = %.1f g en %u s | %u shots guardados\n",
-                brewMode == BrewMode::Espresso ? "ESPRESSO" : "POUR-OVER", espDoseGrams, espRatio,
+                brewModeName(brewMode), espDoseGrams, espRatio,
                 espressoTargetGrams(), espTargetSec, savedShotsCount);
 }
 
 void saveEspressoSettings() {
   Preferences p;
   p.begin(NVS_POUR_NAMESPACE, false);
-  p.putUChar("mode", brewMode == BrewMode::Espresso ? 1 : 0);
+  p.putUChar("mode", static_cast<uint8_t>(brewMode));
   p.putFloat("esp_dose", espDoseGrams);
   p.putFloat("esp_ratio", espRatio);
   p.putUChar("esp_tsec", espTargetSec);
@@ -140,7 +153,8 @@ void setBrewMode(BrewMode m) {
   espArmed           = false;
   resetLivePourRecording();
   saveEspressoSettings();
-  Serial.printf("[MODO] %s\n", m == BrewMode::Espresso ? "ESPRESSO" : "POUR-OVER");
+  fermentResetStep();
+  Serial.printf("[MODO] %s\n", brewModeName(m));
 }
 
 // ---------------------------------------------------------------------------
@@ -211,6 +225,7 @@ static void storeShotRecord(bool persistToNvs) {
   selectedShotSlot       = static_cast<int8_t>(targetIdx);
   lastSavedShotId        = r.shotId;
   bannerIsShot           = true;
+  bannerIsLot            = false;
   pourSavedBannerUntilMs = millis() + 2500UL;
   uiNeedsImmediateRedraw = true;
   Serial.printf("[SHOT] #%u guardado%s: %.1f g (obj %.1f) | 1:%.2f | %.1f s | PI %s%.1f s | rebase %+.1f g | %s\n",

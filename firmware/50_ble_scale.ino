@@ -345,7 +345,11 @@ bool isTimemoreAdvertisedDevice(const NimBLEAdvertisedDevice* dev) {
   return false;
 }
 
+// Definida en 57_accesorios.ino
+void handleAccessoryAdvert(const NimBLEAdvertisedDevice* dev);
+
 void handleScannedDevice(const NimBLEAdvertisedDevice* dev) {
+  handleAccessoryAdvert(dev);   // sonda de pH y temperatura (solo lee su anuncio)
   if (!dev || scaleConnected || doConnectToScale) return;
   if (!isTimemoreAdvertisedDevice(dev)) return;
   if (!dev->isConnectable()) return;

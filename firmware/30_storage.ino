@@ -304,6 +304,7 @@ bool storePourRecord(unsigned long totalElapsedMs, bool persistToNvs) {
   selectedPourSlot       = static_cast<int8_t>(targetIdx);
   lastSavedPourId        = rec.pourId;
   bannerIsShot           = false;
+  bannerIsLot            = false;
   pourSavedBannerUntilMs = millis() + 2200UL;
 
   Serial.printf("[POUR-SAVE] Pour-Over #%u guardado en %s: Peso=%.1fg | Dosis=%.1fg | Ratio=1:%.1f | Tiempo=%us | Vertidos=%s%u\n",

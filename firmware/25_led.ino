@@ -22,6 +22,8 @@ void triggerLedFlash() {
 
 float espressoCutGrams();   // 45_espresso.ino
 
+uint8_t fermentSaltLedState();   // 47_fermento.ino
+
 void updateStatusLed() {
   unsigned long now = millis();
   if (now < ledFlashUntilMs) {
@@ -41,6 +43,14 @@ void updateStatusLed() {
       setRgbColor(LED_BRIGHTNESS * 2, LED_BRIGHTNESS * 3 / 2, 0);
       return;
     }
+  }
+
+  // Salmuera: amarillo cerca del objetivo de sal, verde al llegar, rojo si sobra
+  if (scaleConnected) {
+    const uint8_t fs = fermentSaltLedState();
+    if (fs == 3) { setRgbColor(LED_BRIGHTNESS * 2, 0, 0); return; }
+    if (fs == 2) { setRgbColor(0, LED_BRIGHTNESS * 2, 0); return; }
+    if (fs == 1) { setRgbColor(LED_BRIGHTNESS * 2, LED_BRIGHTNESS * 3 / 2, 0); return; }
   }
 
   if (scaleConnected) {

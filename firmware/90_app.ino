@@ -39,6 +39,7 @@ void setup() {
 
   initPsramAndLoadPours();
   loadEspressoSettingsAndShots();   // modo, receta de espresso e historial de shots
+  loadFermentData();                // % de sal y lotes de fermento
   initOledDisplay();
   updateBatteryAndPowerManagement();
   renderOledScreen();
@@ -93,6 +94,7 @@ void loop() {
     lastScanAttemptMs = millis();
   }
   serviceBleConnection();
+  serviceAccessoryScan();   // sonda de pH y temperatura (solo en modo fermento con la Dot conectada)
 
   // 3b. Confirmar la báscula recién conectada: guardar su MAC en NVS al llegar el primer peso válido;
   //     si en 10 s no llega ninguno y no es la báscula ya vinculada, desconectar y descartarla.
