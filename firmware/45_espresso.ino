@@ -16,6 +16,7 @@
 
 // Definidas en pestañas posteriores
 void registerUserOrScaleActivity();
+void recordBrewContext(bool shot, uint16_t id);
 
 static constexpr uint8_t  MAX_SAVED_SHOTS       = 10;
 static constexpr uint8_t  SHOT_GRAPH_POINTS     = 60;     // 2 px por punto en la OLED
@@ -206,6 +207,7 @@ static void storeShotRecord(bool persistToNvs) {
     s.putBytes(key, &r, sizeof(ShotRecord));
     s.end();
     saveEspressoSettings();  // rebase aprendido
+    recordBrewContext(true, r.shotId);  // molienda y bolsa
   }
 
   selectedShotSlot       = static_cast<int8_t>(targetIdx);

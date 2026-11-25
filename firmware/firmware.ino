@@ -67,6 +67,7 @@
 #include "src/bookoo_protocol.h"
 #include "src/difluid_protocol.h"
 #include "src/tds_sampler.h"
+#include "src/brew_advisor.h"
 
 // ============================================================================
 // WRAPPER USB-SERIAL/JTAG (HWCDC) 100% NO BLOQUEANTE CUANDO EL MONITOR ESTÁ CERRADO
@@ -406,7 +407,9 @@ static constexpr uint8_t BOOKOO_SCREEN_VIEW = NUM_SCREEN_VIEWS;  // vista extra 
 //   MenuEdit     -> editando un valor del menú (dosis, ratio, tiempo); el giro lo ajusta
 //   PourViewer   -> visor del historial (pour-overs o shots, según viewerShowsShots)
 //   TdsMeasure   -> medida de TDS con el DiFluid R2 (58_difluid_r2.ino) para un registro del historial
-enum class UiState : uint8_t { Main, Menu, MenuEdit, PourViewer, TdsMeasure };
+//   Taste        -> "¿cómo sabe?" (agrio/amargo, aguado/intenso) ANTES de ver el gráfico
+//   Chart        -> gráfico de control TDS/EY y sugerencia (46_extraccion.ino)
+enum class UiState : uint8_t { Main, Menu, MenuEdit, PourViewer, TdsMeasure, Taste, Chart };
 UiState uiState                          = UiState::Main;
 
 // Modo de preparación (Menú -> 1. Modo). Se guarda en la NVS.
@@ -417,9 +420,10 @@ BrewMode brewMode                        = BrewMode::PourOver;
 // modo: buildMenuItems() (80_pantalla.ino) rellena la lista con estos identificadores.
 enum MenuItemId : uint8_t {
   MI_MODE, MI_HISTORY, MI_AUTOTIMER, MI_DOSE, MI_RATIO, MI_TARGET_TIME,
-  MI_BRIGHT, MI_BRIDGE, MI_RELINK, MI_UPDATE, MI_SLEEP, MI_EXIT, MI_TDS, MI_JAR, MI_R2ZERO
+  MI_BRIGHT, MI_BRIDGE, MI_RELINK, MI_UPDATE, MI_SLEEP, MI_EXIT, MI_TDS, MI_JAR, MI_R2ZERO,
+  MI_GRIND, MI_BAG, MI_GRIND_DIR
 };
-static constexpr uint8_t MENU_MAX_ITEMS  = 15;
+static constexpr uint8_t MENU_MAX_ITEMS  = 16;
 int8_t menuSelectedIndex                 = 0;
 
 // Parámetros de barista configurables desde el Encoder
@@ -508,6 +512,9 @@ uint16_t activeRecordingPourId           = 0;     // pourId ya guardado de la gr
 volatile bool demoLiveActive             = false;
 
 // Estado del Visor Interactivo de Pour-Overs en la OLED (activo con uiState == UiState::PourViewer)
+// Sabor (UiState::Taste: paso 0 agrio/amargo, paso 1 aguado/intenso, -2..2) y gráfico (UiState::Chart)
+int8_t tasteStep = 0, tasteAB = 0, tasteST = 0;
+bool chartShowAdvice = false;   // false = gráfico de control, true = sugerencia
 bool pourViewerShowStatsPage             = false; // false = Gráfica Peso+Flow+Ratio, true = Ficha Técnica
 int8_t selectedPourSlot                  = 0;
 unsigned long pourSavedBannerUntilMs     = 0;
@@ -541,9 +548,14 @@ struct BrewExtra {
   uint16_t id;           // pourId o shotId (0 = libre)
   uint16_t tdsPacked;    // tds::pack (0 = sin medida)
   uint16_t beverageX10;  // bebida medida en décimas de g (0 = sin medida; solo pour-over)
-  uint16_t reserved;
+  uint16_t grindX10;     // dial del molino x10 (0xFFFF = desconocido)
+  uint16_t bagId;        // bolsa de café (0 = desconocida)
+  uint8_t  taste;        // sabor: nibble bajo agrio/amargo + 2, alto aguado/intenso + 2 (0xFF = sin valorar)
+  uint8_t  flags;        // reservado
+  uint32_t reserved;
 };
-static_assert(sizeof(BrewExtra) == 8, "BrewExtra cambió de tamaño");
+static_assert(sizeof(BrewExtra) == 16, "BrewExtra cambió de tamaño");
+static constexpr uint8_t TASTE_NONE = 0xFF;
 
 // Estado de la conexión con el DiFluid R2 (58_difluid_r2.ino)
 enum class R2State : uint8_t { Off, Scanning, Connecting, Ready, Measuring, Failed, Calibrating };

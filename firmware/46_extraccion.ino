@@ -19,6 +19,16 @@ static BrewExtra shotExtras[MAX_SAVED_SHOTS];
 float serverJarGrams       = 0.0f;    // peso de la jarra vacía (0 = sin registrar)
 float pourRetentionRatio   = 2.0f;    // g de agua retenida por g de café (aprendida)
 
+// Molino y bolsa: cada registro guarda la molienda y la bolsa con las que se hizo
+float grindPour            = 1.5f;    // dial del molino para filtrado
+float grindEsp             = 1.5f;    // dial del molino para espresso
+bool grindUpCoarser        = true;    // subir el número = más grueso
+uint16_t currentBagId      = 1;
+static constexpr float GRIND_MIN = 0.0f, GRIND_MAX = 60.0f;
+// Punto dulce personal (centro de la zona del gráfico), por modo. Empieza en la zona SCA.
+float sweetEyPour = 20.0f, sweetTdsPour = 1.30f, sweetEyEsp = 20.0f, sweetTdsEsp = 10.0f;
+static constexpr float HALF_EY = 2.0f, HALF_TDS_POUR = 0.15f, HALF_TDS_ESP = 1.5f;
+
 // Bebida pendiente de medir tras guardar un pour-over
 static uint16_t bevPendingPourId   = 0;
 static float bevPendingWater       = 0.0f;
@@ -31,13 +41,21 @@ void loadBrewExtras() {
   memset(shotExtras, 0, sizeof(shotExtras));
   Preferences p;
   p.begin(NVS_POUR_NAMESPACE, true);
-  if (p.getBytesLength("px") == sizeof(pourExtras)) p.getBytes("px", pourExtras, sizeof(pourExtras));
+  if (p.getBytesLength("px2") == sizeof(pourExtras)) p.getBytes("px2", pourExtras, sizeof(pourExtras));
+  grindPour      = p.getFloat("grind_f", 1.5f);
+  grindEsp       = p.getFloat("grind_e", 1.5f);
+  grindUpCoarser = p.getBool("grind_up", true);
+  currentBagId   = p.getUShort("bag", 1);
+  sweetEyPour    = p.getFloat("sw_ey_f", 20.0f);
+  sweetTdsPour   = p.getFloat("sw_tds_f", 1.30f);
+  sweetEyEsp     = p.getFloat("sw_ey_e", 20.0f);
+  sweetTdsEsp    = p.getFloat("sw_tds_e", 10.0f);
   serverJarGrams     = p.getFloat("jar", 0.0f);
   pourRetentionRatio = p.getFloat("ret", 2.0f);
   p.end();
   Preferences s;
   s.begin(NVS_SHOT_NAMESPACE, true);
-  if (s.getBytesLength("sx") == sizeof(shotExtras)) s.getBytes("sx", shotExtras, sizeof(shotExtras));
+  if (s.getBytesLength("sx2") == sizeof(shotExtras)) s.getBytes("sx2", shotExtras, sizeof(shotExtras));
   s.end();
   if (isnan(serverJarGrams) || serverJarGrams < 0.0f || serverJarGrams > 1500.0f) serverJarGrams = 0.0f;
   if (isnan(pourRetentionRatio) || pourRetentionRatio < 1.0f || pourRetentionRatio > 3.5f) pourRetentionRatio = 2.0f;
@@ -48,10 +66,10 @@ static void saveExtras(bool shot) {
   Preferences p;
   if (shot) {
     p.begin(NVS_SHOT_NAMESPACE, false);
-    p.putBytes("sx", shotExtras, sizeof(shotExtras));
+    p.putBytes("sx2", shotExtras, sizeof(shotExtras));
   } else {
     p.begin(NVS_POUR_NAMESPACE, false);
-    p.putBytes("px", pourExtras, sizeof(pourExtras));
+    p.putBytes("px2", pourExtras, sizeof(pourExtras));
     p.putFloat("ret", pourRetentionRatio);
   }
   p.end();
@@ -69,7 +87,9 @@ static BrewExtra* findExtra(bool shot, uint16_t id, bool create) {
     if (t[i].id < t[pick].id) pick = i;
   }
   memset(&t[pick], 0, sizeof(BrewExtra));
-  t[pick].id = id;
+  t[pick].id       = id;
+  t[pick].grindX10 = 0xFFFF;
+  t[pick].taste    = TASTE_NONE;
   return &t[pick];
 }
 
@@ -187,4 +207,129 @@ void serviceBeverageCapture() {
     uiNeedsImmediateRedraw = true;
   }
   bevPendingPourId = 0;
+}
+
+// ---------------------------------------------------------------------------
+// Molino, bolsa, sabor y punto dulce
+// ---------------------------------------------------------------------------
+float& grindForMode() { return (brewMode == BrewMode::Espresso) ? grindEsp : grindPour; }
+
+void saveGrindSettings() {
+  Preferences p;
+  p.begin(NVS_POUR_NAMESPACE, false);
+  p.putFloat("grind_f", grindPour);
+  p.putFloat("grind_e", grindEsp);
+  p.putBool("grind_up", grindUpCoarser);
+  p.putUShort("bag", currentBagId);
+  p.end();
+}
+
+static void saveSweetSpots() {
+  Preferences p;
+  p.begin(NVS_POUR_NAMESPACE, false);
+  p.putFloat("sw_ey_f", sweetEyPour);
+  p.putFloat("sw_tds_f", sweetTdsPour);
+  p.putFloat("sw_ey_e", sweetEyEsp);
+  p.putFloat("sw_tds_e", sweetTdsEsp);
+  p.end();
+}
+
+// Menú -> Bolsa nueva: la molienda que funcionaba con la anterior ya no sirve de referencia
+void startNewBag() {
+  currentBagId++;
+  saveGrindSettings();
+  Serial.printf("[EXTRACCION] Bolsa nueva: #%u\n", currentBagId);
+}
+
+// Al guardar un pour-over o un shot real: molienda y bolsa del momento
+void recordBrewContext(bool shot, uint16_t id) {
+  BrewExtra* e = findExtra(shot, id, true);
+  if (e == nullptr) return;
+  const float g = shot ? grindEsp : grindPour;
+  e->grindX10 = static_cast<uint16_t>(lroundf(g * 10.0f));
+  e->bagId    = currentBagId;
+  saveExtras(shot);
+}
+
+bool recordTaste(bool shot, uint16_t id, int8_t* acidBitter, int8_t* strength) {
+  const BrewExtra* e = findExtra(shot, id, false);
+  if (e == nullptr || e->taste == TASTE_NONE) return false;
+  if (acidBitter) *acidBitter = static_cast<int8_t>(e->taste & 0x0F) - 2;
+  if (strength)   *strength   = static_cast<int8_t>(e->taste >> 4) - 2;
+  return true;
+}
+
+// Molienda del registro (<0 = desconocida)
+float recordGrind(bool shot, uint16_t id) {
+  const BrewExtra* e = findExtra(shot, id, false);
+  return (e == nullptr || e->grindX10 == 0xFFFF) ? -1.0f : e->grindX10 / 10.0f;
+}
+
+// Molienda del último café de la bolsa actual que gustó (equilibrado en los dos ejes)
+float bestGrindThisBag(bool shot) {
+  const BrewExtra* t = shot ? shotExtras : pourExtras;
+  const uint8_t n = shot ? MAX_SAVED_SHOTS : MAX_SAVED_POURS;
+  uint16_t bestId = 0;
+  float g = -1.0f;
+  for (uint8_t i = 0; i < n; i++) {
+    if (t[i].id != 0 && t[i].bagId == currentBagId && t[i].taste == 0x22 && t[i].grindX10 != 0xFFFF && t[i].id > bestId) {
+      bestId = t[i].id;
+      g = t[i].grindX10 / 10.0f;
+    }
+  }
+  return g;
+}
+
+void sweetSpot(bool shot, float* ey, float* tdsV, float* halfEy, float* halfTds) {
+  if (ey)      *ey      = shot ? sweetEyEsp : sweetEyPour;
+  if (tdsV)    *tdsV    = shot ? sweetTdsEsp : sweetTdsPour;
+  if (halfEy)  *halfEy  = HALF_EY;
+  if (halfTds) *halfTds = shot ? HALF_TDS_ESP : HALF_TDS_POUR;
+}
+
+// Sugerencia para un registro con TDS y sabor
+bool buildAdvice(bool shot, uint16_t id, advisor::Advice& out) {
+  float v;
+  int8_t ab, st;
+  if (!recordTds(shot, id, &v, nullptr) || !recordTaste(shot, id, &ab, &st)) return false;
+  advisor::Input in;
+  in.espresso       = shot;
+  in.tds            = v;
+  in.ey             = recordEy(shot, id, nullptr);
+  sweetSpot(shot, &in.targetEy, &in.targetTds, &in.halfEy, &in.halfTds);
+  in.acidBitter     = ab;
+  in.strength       = st;
+  in.grind          = recordGrind(shot, id);
+  in.grindUpCoarser = grindUpCoarser;
+  in.bestGrindThisBag = bestGrindThisBag(shot);
+  if (shot) {
+    const int8_t k = shotIndexById(id);
+    if (k >= 0 && savedShots[k].doseGrams > 0.1f) in.ratio = savedShots[k].yieldGrams / savedShots[k].doseGrams;
+  } else {
+    const PourOverRecord* r = findPourById(id);
+    if (r != nullptr) {
+      in.ratio    = r->finalRatio;
+      in.hasBloom = r->hasBloom != 0;
+    }
+  }
+  out = advisor::advise(in);
+  return true;
+}
+
+// Respuesta a "¿cómo sabe?" (-2..2 en cada eje). Si gusta, mueve el punto dulce hacia ese café.
+void storeTaste(bool shot, uint16_t id, int8_t acidBitter, int8_t strength) {
+  BrewExtra* e = findExtra(shot, id, true);
+  if (e == nullptr) return;
+  e->taste = static_cast<uint8_t>(((strength + 2) << 4) | (acidBitter + 2));
+  saveExtras(shot);
+  float v;
+  if (acidBitter == 0 && strength == 0 && recordTds(shot, id, &v, nullptr)) {
+    const float ey = recordEy(shot, id, nullptr);
+    if (ey > 0.0f) {
+      if (shot) advisor::learnSweetSpot(sweetEyEsp, sweetTdsEsp, ey, v);
+      else      advisor::learnSweetSpot(sweetEyPour, sweetTdsPour, ey, v);
+      saveSweetSpots();
+    }
+  }
+  Serial.printf("[SABOR] %s #%u: agrio/amargo %+d, aguado/intenso %+d\n", shot ? "Shot" : "Pour", id, acidBitter, strength);
 }

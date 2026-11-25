@@ -66,6 +66,27 @@ static void tdsSelectRecord(int8_t step) {
   r2TargetId = shot ? savedShots[idx].shotId : psramSavedPours[idx].pourId;
 }
 
+// "¿Cómo sabe?" (antes de ver el gráfico) y gráfico de control con la sugerencia
+static bool chartFromViewer = false;
+
+void beginTasteInput() {
+  tasteStep = 0;
+  tasteAB   = 0;
+  tasteST   = 0;
+  int8_t ab, st;
+  if (recordTaste(r2TargetIsShot, r2TargetId, &ab, &st)) { tasteAB = ab; tasteST = st; }
+  uiState = UiState::Taste;
+  uiNeedsImmediateRedraw = true;
+}
+
+static void openChart(bool shot, uint16_t id, bool fromViewer) {
+  r2TargetIsShot  = shot;
+  r2TargetId      = id;
+  chartFromViewer = fromViewer;
+  chartShowAdvice = false;
+  uiState         = UiState::Chart;
+}
+
 static void openTdsScreen() {
   r2TargetId = 0;
   tdsSelectRecord(0);
@@ -76,6 +97,7 @@ static void openTdsScreen() {
 // Al salir de la edición de un valor del menú, guardarlo en la NVS
 static void commitMenuEdit() {
   if (uiState != UiState::MenuEdit) return;
+  if (menuEditItem == MI_GRIND) { saveGrindSettings(); return; }
   if (menuEditItem == MI_DOSE && brewMode == BrewMode::PourOver) saveDoseToNVS();
   else saveEspressoSettings();
 }
@@ -118,6 +140,23 @@ void executeButtonMultiClickAction(uint8_t clicks) {
 
   // 1 CLICK: En pantalla principal -> Cronómetro / shot; en Menú -> Confirmar opción; en Visor -> Cambiar página
   if (clicks == 1) {
+    if (uiState == UiState::Taste) {
+      if (tasteStep == 0) {
+        tasteStep = 1;
+      } else {
+        storeTaste(r2TargetIsShot, r2TargetId, tasteAB, tasteST);
+        openChart(r2TargetIsShot, r2TargetId, false);
+      }
+      return;
+    }
+    if (uiState == UiState::Chart) {
+      int8_t ab, st;
+      if (chartShowAdvice && !recordTaste(r2TargetIsShot, r2TargetId, &ab, &st)) beginTasteInput();
+      else if (chartShowAdvice && chartFromViewer) uiState = UiState::PourViewer;
+      else if (chartShowAdvice) uiState = UiState::Main;
+      else chartShowAdvice = true;
+      return;
+    }
     if (uiState == UiState::TdsMeasure) {
       if (r2State == R2State::Calibrating)                  return;
       if (r2State == R2State::Measuring)                    r2CancelMeasure();
@@ -129,8 +168,15 @@ void executeButtonMultiClickAction(uint8_t clicks) {
       if (viewerCount() == 0) {
         uiState = UiState::Main;
       } else {
-        // 1 Click dentro del visor: alternar entre GRÁFICA y FICHA DE DATOS
-        pourViewerShowStatsPage = !pourViewerShowStatsPage;
+        // 1 Click dentro del visor: GRÁFICA -> FICHA -> (con TDS) GRÁFICO DE CONTROL -> GRÁFICA
+        const bool shot = viewerShowsShots;
+        const uint16_t id = shot ? savedShots[selectedShotSlot].shotId : psramSavedPours[selectedPourSlot].pourId;
+        if (pourViewerShowStatsPage && recordTds(shot, id, nullptr, nullptr)) {
+          pourViewerShowStatsPage = false;
+          openChart(shot, id, true);
+        } else {
+          pourViewerShowStatsPage = !pourViewerShowStatsPage;
+        }
       }
     } else if (inMenu) {
       uint8_t ids[MENU_MAX_ITEMS];
@@ -160,6 +206,7 @@ void executeButtonMultiClickAction(uint8_t clicks) {
         case MI_DOSE:          // valores editables: 1 clic entra, girar ajusta, 1 clic guarda
         case MI_RATIO:
         case MI_TARGET_TIME:
+        case MI_GRIND:
           if (uiState == UiState::MenuEdit) {
             commitMenuEdit();
             uiState = UiState::Menu;
@@ -174,6 +221,13 @@ void executeButtonMultiClickAction(uint8_t clicks) {
         case MI_R2ZERO:        // cero del R2 con agua destilada
           openTdsScreen();
           r2RequestZero();
+          break;
+        case MI_BAG:           // bolsa de café nueva: historial de molienda limpio
+          startNewBag();
+          break;
+        case MI_GRIND_DIR:     // sentido del molino
+          grindUpCoarser = !grindUpCoarser;
+          saveGrindSettings();
           break;
         case MI_JAR:           // jarra vacía sobre la báscula: su peso (sin nada, la borra)
           saveServerJar(rawWeightGrams > 20.0f ? static_cast<float>(rawWeightGrams) : 0.0f);
@@ -211,31 +265,17 @@ void executeButtonMultiClickAction(uint8_t clicks) {
   }
 }
 
-void handleRotaryEncoder() {
-  // 1. Procesar giro en cuadratura desde el periférico PCNT por hardware del ESP32-S3.
-  //    Acumulador con histéresis: una muesca cuenta al acumular 3 de sus 4 pulsos, y el resto (-1) queda
-  //    pendiente. Así el umbral cae a media transición, NO en la posición de reposo: un rebote de un
-  //    pulso (4->3->4) ya no hace oscilar la muesca (antes: count/4 truncado, umbral justo en reposo).
-  int32_t encCount = getEncoderPulseCount();
-  int32_t encStep  = encCount - lastEncPulseCount;
-  lastEncPulseCount = encCount;
-  if (encStep > 4000 || encStep < -4000) encStep = 0;  // salto anómalo (desbordamiento): ignorar
-  encPulseAccum += encStep;
-  int32_t delta = 0;
-  while (encPulseAccum >= ENC_STEPS_PER_DETENT - 1) {
-    encPulseAccum -= ENC_STEPS_PER_DETENT;
-    delta++;
-  }
-  while (encPulseAccum <= -(ENC_STEPS_PER_DETENT - 1)) {
-    encPulseAccum += ENC_STEPS_PER_DETENT;
-    delta--;
-  }
-
-  if (delta != 0) {
+void applyEncoderDelta(int32_t delta) {
+  {
     uiNeedsImmediateRedraw = true;
     registerUserOrScaleActivity();
 
-    if (uiState == UiState::TdsMeasure) {
+    if (uiState == UiState::Taste) {
+      int8_t& v = (tasteStep == 0) ? tasteAB : tasteST;
+      v = static_cast<int8_t>(constrain(static_cast<int>(v) + (delta > 0 ? 1 : -1), -2, 2));
+    } else if (uiState == UiState::Chart) {
+      chartShowAdvice = !chartShowAdvice;
+    } else if (uiState == UiState::TdsMeasure) {
       if (r2State != R2State::Measuring) tdsSelectRecord(delta > 0 ? 1 : -1);
     } else if (uiState == UiState::PourViewer) {
       const uint8_t n = viewerCount();
@@ -253,6 +293,9 @@ void handleRotaryEncoder() {
         espDoseGrams = constrain(roundf((espDoseGrams + d * 0.1f) * 10.0f) / 10.0f, ESP_DOSE_MIN_G, ESP_DOSE_MAX_G);
       } else if (menuEditItem == MI_RATIO) {
         espRatio = constrain(roundf((espRatio + d * 0.1f) * 10.0f) / 10.0f, ESP_RATIO_MIN, ESP_RATIO_MAX);
+      } else if (menuEditItem == MI_GRIND) {
+        float& g = grindForMode();
+        g = constrain(roundf((g + d * 0.1f) * 10.0f) / 10.0f, GRIND_MIN, GRIND_MAX);
       } else if (menuEditItem == MI_TARGET_TIME) {
         espTargetSec = static_cast<uint8_t>(constrain(static_cast<int>(espTargetSec) + static_cast<int>(delta),
                                                       static_cast<int>(ESP_TIME_MIN_S), static_cast<int>(ESP_TIME_MAX_S)));
@@ -274,6 +317,30 @@ void handleRotaryEncoder() {
       Serial.printf("[ENCODER] Vista de pantalla cambiada a: %u\n", currentScreenView);
     }
   }
+
+}
+
+void handleRotaryEncoder() {
+  // 1. Procesar giro en cuadratura desde el periférico PCNT por hardware del ESP32-S3.
+  //    Acumulador con histéresis: una muesca cuenta al acumular 3 de sus 4 pulsos, y el resto (-1) queda
+  //    pendiente. Así el umbral cae a media transición, NO en la posición de reposo: un rebote de un
+  //    pulso (4->3->4) ya no hace oscilar la muesca (antes: count/4 truncado, umbral justo en reposo).
+  int32_t encCount = getEncoderPulseCount();
+  int32_t encStep  = encCount - lastEncPulseCount;
+  lastEncPulseCount = encCount;
+  if (encStep > 4000 || encStep < -4000) encStep = 0;  // salto anómalo (desbordamiento): ignorar
+  encPulseAccum += encStep;
+  int32_t delta = 0;
+  while (encPulseAccum >= ENC_STEPS_PER_DETENT - 1) {
+    encPulseAccum -= ENC_STEPS_PER_DETENT;
+    delta++;
+  }
+  while (encPulseAccum <= -(ENC_STEPS_PER_DETENT - 1)) {
+    encPulseAccum += ENC_STEPS_PER_DETENT;
+    delta--;
+  }
+
+  if (delta != 0) applyEncoderDelta(delta);
 
   // 2. Procesar botón Push del Encoder (PIN_ENC_SW = GPIO 12, activo en LOW)
   //    - 1 Click:  Cronómetro Start / Stop (o confirmar en menú)
@@ -443,6 +510,18 @@ void handleSerialCommands() {
       if (uiState != UiState::TdsMeasure) openTdsScreen();
       if (r2State == R2State::Ready) r2StartMeasure(); else r2Request();
       uiNeedsImmediateRedraw = true;
+    } else if (c == '<' || c == '>') {
+      applyEncoderDelta(c == '>' ? 1 : -1);   // giro simulado
+    } else if (c == '.') {
+      executeButtonMultiClickAction(1);        // clic simulado
+    } else if (c == 'j' || c == 'J') {
+      // TDS simulado (1.61 %) para el registro de la pantalla TDS, y a "¿cómo sabe?"
+      if (uiState != UiState::TdsMeasure) openTdsScreen();
+      if (r2TargetId != 0) {
+        storeTdsResult(r2TargetIsShot, r2TargetId, tds::pack(1.61f, tds::FLAG_VALID));
+        beginTasteInput();
+      }
+      pourSavedBannerUntilMs = 0;
     } else if (c == 'y' || c == 'Y') {
       // Pantalla TDS (R2) del último registro del modo actual
       openTdsScreen();

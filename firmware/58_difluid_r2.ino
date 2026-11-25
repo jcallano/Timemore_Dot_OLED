@@ -187,6 +187,7 @@ void r2CancelMeasure() {
 
 // Definida en 30_storage / 45_espresso: guarda el TDS en el registro destino
 void storeTdsResult(bool isShot, uint16_t id, uint16_t packed);
+void beginTasteInput();   // 85_controles.ino
 
 static void r2OnTestResult(float tdsVal) {
   r2TestInFlight = false;
@@ -209,6 +210,8 @@ static void r2OnTestResult(float tdsVal) {
                   (r2Sampler.flags() & tds::FLAG_DOUBTFUL) ? " (dudosa)" : "",
                   (r2Sampler.flags() & tds::FLAG_TEMP) ? " (temperatura inestable)" : "");
     r2SetState(R2State::Ready);
+    // Primero probar: con la pantalla TDS abierta, pasa a "¿cómo sabe?" antes de enseñar el gráfico
+    if (uiState == UiState::TdsMeasure) beginTasteInput();
   } else {
     r2NextTestAtMs = millis() + R2_TEST_GAP_MS;
   }

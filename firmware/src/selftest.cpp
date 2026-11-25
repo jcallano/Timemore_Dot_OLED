@@ -7,6 +7,7 @@
 #include "bookoo_protocol.h"
 #include "difluid_protocol.h"
 #include "tds_sampler.h"
+#include "brew_advisor.h"
 #include "flow_engine.h"
 #include "timemore_protocol.h"
 
@@ -293,10 +294,10 @@ void testDifluid() {
   e = dfproto::decodeAction(dfproto::parseFrame(neg, sizeof(neg)));
   check(e.kind == dfproto::TestEvent::Result && near(e.tds, -0.07f, 0.001f), "R2: TDS negativo (agua) -0.07 %");
   // Trama real del R2 sin muestra en el prisma
-  const uint8_t noLiq[8] = {0xDF, 0xDF, 0x03, 0xFE, 0x03, 0x00, 0x02, 0x03};
+  const uint8_t noLiq[9] = {0xDF, 0xDF, 0x03, 0xFE, 0x03, 0x00, 0x02, 0x03, 0xC7};
   e = dfproto::decodeAction(dfproto::parseFrame(noLiq, sizeof(noLiq)));
   check(e.kind == dfproto::TestEvent::Error && e.errClass == 2 && e.errCode == dfproto::ERR_NO_LIQUID,
-        "R2: error real 'sin liquido' (DF DF 03 FE 03 00 02 03)");
+        "R2: error real 'sin liquido' (DF DF 03 FE 03 00 02 03 C7)");
 }
 
 void testTdsSampler() {
@@ -338,6 +339,39 @@ void testTdsSampler() {
   check(near(tds::eyPourOver(1.38f, 250.0f, 15.0f), 20.24f, 0.01f), "EY pour-over: 1.38 % x (250 - 2x15) / 15 = 20.24 %");
 }
 
+void testAdvisor() {
+  advisor::Input in;
+  in.ey = 23.6f; in.tds = 1.61f; in.grind = 1.5f; in.ratio = 17.0f;
+  in.acidBitter = 1; in.strength = 1;
+  advisor::Advice a = advisor::advise(in);
+  check(!a.liked && !a.inZone && near(a.suggestedGrind, 1.6f, 0.001f) && near(a.suggestedRatio, 17.5f, 0.001f),
+        "Consejo: EY 23.6 amargo e intenso -> molienda 1.6 y 1:17.5", "molienda %.2f", a.suggestedGrind);
+  in.grindUpCoarser = false;
+  a = advisor::advise(in);
+  check(near(a.suggestedGrind, 1.4f, 0.001f), "Consejo: molino al reves (subir = mas fino) -> 1.4", "obtenido %.2f", a.suggestedGrind);
+
+  advisor::Input s;
+  s.ey = 17.0f; s.tds = 1.20f; s.grind = 2.0f; s.acidBitter = -2; s.hasBloom = false; s.ratio = 16.0f;
+  a = advisor::advise(s);
+  check(near(a.suggestedGrind, 1.8f, 0.001f) && a.suggestedRatio < 0.0f && a.nLines == 2,
+        "Consejo: muy agrio sin bloom -> 2 pasos mas fino y bloom", "molienda %.2f", a.suggestedGrind);
+
+  advisor::Input c;   // agrio con EY alta: no se toca la molienda
+  c.ey = 23.5f; c.tds = 1.35f; c.grind = 1.5f; c.acidBitter = -1;
+  a = advisor::advise(c);
+  check(a.suggestedGrind < 0.0f && a.nLines >= 2, "Consejo: agrio con EY alta -> temperatura, no molienda");
+
+  advisor::Input g;   // gusta fuera de la zona: no cambiar
+  g.ey = 23.6f; g.tds = 1.61f; g.grind = 1.5f;
+  a = advisor::advise(g);
+  check(a.liked && !a.inZone && a.suggestedGrind < 0.0f && a.suggestedRatio < 0.0f,
+        "Consejo: si gusta, no se cambia nada aunque este fuera de la zona");
+
+  float tEy = 20.0f, tTds = 1.30f;
+  advisor::learnSweetSpot(tEy, tTds, 23.0f, 1.50f);
+  check(near(tEy, 20.6f, 0.001f) && near(tTds, 1.34f, 0.001f), "Punto dulce: se mueve un 20 % hacia el cafe que gusto");
+}
+
 }  // namespace
 
 int runSelfTests(void (*print)(const char* line)) {
@@ -349,6 +383,7 @@ int runSelfTests(void (*print)(const char* line)) {
   testBookoo();
   testDifluid();
   testTdsSampler();
+  testAdvisor();
   char line[80];
   snprintf(line, sizeof(line), "[TEST] Resultado: %d OK, %d FALLOS", g_pass, g_fail);
   g_print(line);

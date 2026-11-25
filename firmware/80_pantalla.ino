@@ -111,14 +111,20 @@ uint8_t buildMenuItems(uint8_t* ids) {
     ids[n++] = MI_DOSE;
     ids[n++] = MI_RATIO;
     ids[n++] = MI_TARGET_TIME;
+    ids[n++] = MI_GRIND;
     ids[n++] = MI_TDS;
     ids[n++] = MI_R2ZERO;
+    ids[n++] = MI_BAG;
+    ids[n++] = MI_GRIND_DIR;
   } else {
     ids[n++] = MI_DOSE;
     ids[n++] = MI_AUTOTIMER;
+    ids[n++] = MI_GRIND;
     ids[n++] = MI_TDS;
     ids[n++] = MI_R2ZERO;
     ids[n++] = MI_JAR;
+    ids[n++] = MI_BAG;
+    ids[n++] = MI_GRIND_DIR;
   }
   ids[n++] = MI_HISTORY;
   ids[n++] = MI_MODE;
@@ -151,6 +157,9 @@ static void menuItemLabel(uint8_t id, uint8_t num, bool editing, char* out, size
     case MI_BRIDGE:      snprintf(out, cap, "%u.PUENTE BOOKOO: %s", num, bookooBridgeEnabled ? "ON" : "OFF"); break;
     case MI_RELINK:      snprintf(out, cap, "%u.RE-VINCULAR DOT", num); break;
     case MI_TDS:         snprintf(out, cap, "%u.TDS (R2)%s", num, r2Connected() ? " ON" : ""); break;
+    case MI_GRIND:       snprintf(out, cap, "%u.MOLINO: %.1f%s", num, grindForMode(), mark); break;
+    case MI_BAG:         snprintf(out, cap, "%u.BOLSA NUEVA (#%u)", num, currentBagId); break;
+    case MI_GRIND_DIR:   snprintf(out, cap, "%u.MOLINO+: %s", num, grindUpCoarser ? "GRUESO" : "FINO"); break;
     case MI_R2ZERO:      snprintf(out, cap, "%u.CERO R2 (DESTIL.)", num); break;
     case MI_JAR:
       if (serverJarGrams > 0.0f) snprintf(out, cap, "%u.JARRA: %.0fG", num, serverJarGrams);
@@ -334,6 +343,113 @@ void renderShotViewerOled() {
     oledDrawHLine(0, 51, 128, true);
     oledDrawText(2, 55, l4, 1);
   }
+}
+
+// ============================================================================
+// SABOR Y GRÁFICO DE CONTROL (después de medir el TDS)
+// ============================================================================
+// "¿Cómo sabe?": primero probar. Dos preguntas, girar para elegir y 1 clic para seguir.
+void renderTasteOled() {
+  oledFillRect(0, 0, 128, 11, true);
+  oledDrawText(2, 2, tasteStep == 0 ? "1/2 PRUEBA EL CAFE" : "2/2 PRUEBA EL CAFE", 1, true);
+  const bool ab = (tasteStep == 0);
+  oledDrawText(0, 15, ab ? "COMO SABE?" : "Y DE CUERPO?", 1);
+  const int8_t v = ab ? tasteAB : tasteST;
+  // Escala de 5 posiciones con extremos rotulados
+  oledDrawText(0, 28, ab ? "AGRIO" : "AGUADO", 1);
+  const char* right = ab ? "AMARGO" : "INTENSO";
+  oledDrawText(128 - 6 * static_cast<int>(strlen(right)), 28, right, 1);
+  oledDrawHLine(10, 42, 108, true);
+  for (int k = 0; k < 5; k++) {
+    const int x = 10 + k * 27;
+    for (int y = 39; y <= 45; y++) oledDrawPixel(x, y, true);
+  }
+  const int mx = 10 + (v + 2) * 27;
+  oledFillRect(mx - 3, 38, 7, 9, true);
+  static const char* abTxt[5] = {"MUY AGRIO", "ALGO AGRIO", "EQUILIBRADO", "ALGO AMARGO", "MUY AMARGO/SECO"};
+  static const char* stTxt[5] = {"MUY AGUADO", "ALGO AGUADO", "BIEN DE CUERPO", "ALGO INTENSO", "MUY INTENSO"};
+  const char* t = ab ? abTxt[v + 2] : stTxt[v + 2];
+  oledDrawText((128 - 6 * static_cast<int>(strlen(t))) / 2, 49, t, 1);
+  oledDrawText(0, 57, "GIRA Y 1C:OK", 1);
+}
+
+// Gráfico de control: EY en horizontal, TDS en vertical, la zona del punto dulce y los cafés de la bolsa
+void renderChartOled() {
+  const bool shot = r2TargetIsShot;
+  float v = 0.0f;
+  if (!recordTds(shot, r2TargetId, &v, nullptr)) {
+    oledDrawText(4, 24, "SIN TDS MEDIDO", 1);
+    return;
+  }
+  bool est = false;
+  const float ey = recordEy(shot, r2TargetId, &est);
+  int8_t ab = 0, st = 0;
+  const bool tasted = recordTaste(shot, r2TargetId, &ab, &st);
+
+  if (chartShowAdvice) {
+    oledFillRect(0, 0, 128, 11, true);
+    char h[24];
+    snprintf(h, sizeof(h), "%s #%u: SUGERENCIA", shot ? "SHOT" : "POUR", r2TargetId);
+    oledDrawText(2, 2, h, 1, true);
+    if (!tasted) {
+      oledDrawText(0, 16, "PRIMERO PRUEBALO:", 1);
+      oledDrawText(0, 26, "TU GUSTO MANDA SOBRE", 1);
+      oledDrawText(0, 36, "LOS NUMEROS.", 1);
+      oledDrawText(0, 56, "1C:VALORAR", 1);
+      return;
+    }
+    advisor::Advice a;
+    buildAdvice(shot, r2TargetId, a);
+    for (uint8_t i = 0; i < a.nLines; i++) oledDrawText(0, 14 + i * 10, a.lines[i], 1);
+    oledDrawHLine(0, 54, 128, true);
+    oledDrawText(0, 56, "SEGUN TU GUSTO  1C:OK", 1);
+    return;
+  }
+
+  // Ejes: EY 14..26 % en x = 0..83; TDS en y = 63..0 (filtro 1.00..1.70, espresso 6..14)
+  const float eyMin = 14.0f, eyMax = 26.0f;
+  const float tMin = shot ? 6.0f : 1.00f, tMax = shot ? 14.0f : 1.70f;
+  const int W = 84, H = 64;
+  auto px = [&](float e) { int x = static_cast<int>((e - eyMin) / (eyMax - eyMin) * (W - 1)); return x < 0 ? 0 : (x > W - 1 ? W - 1 : x); };
+  auto py = [&](float t) { int y = (H - 1) - static_cast<int>((t - tMin) / (tMax - tMin) * (H - 1)); return y < 0 ? 0 : (y > H - 1 ? H - 1 : y); };
+  oledDrawRect(0, 0, W, H, true);
+  // Marcas de EY cada 2 %
+  for (float e = 16.0f; e < eyMax; e += 2.0f) { oledDrawPixel(px(e), H - 2, true); oledDrawPixel(px(e), 1, true); }
+  // Zona del punto dulce (punteada)
+  float cEy, cT, hEy, hT;
+  sweetSpot(shot, &cEy, &cT, &hEy, &hT);
+  const int zx0 = px(cEy - hEy), zx1 = px(cEy + hEy), zy0 = py(cT + hT), zy1 = py(cT - hT);
+  for (int x = zx0; x <= zx1; x += 2) { oledDrawPixel(x, zy0, true); oledDrawPixel(x, zy1, true); }
+  for (int y = zy0; y <= zy1; y += 2) { oledDrawPixel(zx0, y, true); oledDrawPixel(zx1, y, true); }
+  // Otros cafés con TDS (cruz pequeña)
+  const uint8_t n = shot ? savedShotsCount : savedPoursCount;
+  for (uint8_t i = 0; i < n; i++) {
+    const uint16_t id = shot ? savedShots[i].shotId : psramSavedPours[i].pourId;
+    float ov;
+    if (id == r2TargetId || !recordTds(shot, id, &ov, nullptr)) continue;
+    const float oe = recordEy(shot, id, nullptr);
+    if (oe <= 0.0f) continue;
+    const int x = px(oe), y = py(ov);
+    oledDrawPixel(x, y, true); oledDrawPixel(x - 1, y, true); oledDrawPixel(x + 1, y, true);
+    oledDrawPixel(x, y - 1, true); oledDrawPixel(x, y + 1, true);
+  }
+  // Este café: cuadrado relleno de 5 px
+  if (ey > 0.0f) oledFillRect(px(ey) - 2, py(v) - 2, 5, 5, true);
+
+  // Columna derecha: valores
+  char l[12];
+  oledDrawText(W + 4, 0, est ? "EY*" : "EY", 1);
+  if (ey > 0.0f) snprintf(l, sizeof(l), "%.1f%%", ey); else snprintf(l, sizeof(l), "--");
+  oledDrawText(W + 4, 9, l, 1);
+  oledDrawText(W + 4, 21, "TDS", 1);
+  snprintf(l, sizeof(l), shot ? "%.1f%%" : "%.2f%%", v);
+  oledDrawText(W + 4, 30, l, 1);
+  if (tasted) {
+    static const char* abS[5] = {"AGRIO", "AGRIO", "EQUIL", "AMARG", "AMARG"};
+    oledDrawText(W + 4, 42, abS[ab + 2], 1);
+    if (ab != 0) { snprintf(l, sizeof(l), "%+d", ab); oledDrawText(W + 34, 42, l, 1); }
+  }
+  oledDrawText(W + 4, 55, "1C:>", 1);
 }
 
 // ============================================================================
@@ -606,6 +722,18 @@ void renderOledScreen() {
   if (uiState == UiState::PourViewer) {
     if (viewerShowsShots) renderShotViewerOled();
     else                  renderPourOverViewerOled();
+    oledFlush();
+    return;
+  }
+
+  if (uiState == UiState::Taste) {
+    renderTasteOled();
+    oledFlush();
+    return;
+  }
+
+  if (uiState == UiState::Chart) {
+    renderChartOled();
     oledFlush();
     return;
   }

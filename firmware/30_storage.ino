@@ -202,6 +202,7 @@ void saveDoseToNVS() {
 
 bool storePourRecord(unsigned long totalElapsedMs, bool persistToNvs);
 void armBeverageCapture(uint16_t pourId, float waterG, float doseG);  // 46_extraccion.ino
+void recordBrewContext(bool shot, uint16_t id);                       // 46_extraccion.ino
 
 bool finalizeAndSaveCurrentPourOver(unsigned long totalElapsedMs) {
   return storePourRecord(totalElapsedMs, !demoLiveActive);  // la demo en vivo no se escribe en la NVS
@@ -301,6 +302,7 @@ bool storePourRecord(unsigned long totalElapsedMs, bool persistToNvs) {
     pourPrefs.putBytes(key, &rec, sizeof(PourOverRecord));
     pourPrefs.end();
     armBeverageCapture(rec.pourId, rec.finalWeightGrams, rec.doseGrams);  // bebida al quitar el dripper
+    recordBrewContext(false, rec.pourId);                                 // molienda y bolsa
   }
 
   selectedPourSlot       = static_cast<int8_t>(targetIdx);
