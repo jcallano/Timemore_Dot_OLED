@@ -9,7 +9,7 @@
 //   - Medida: con la jarra registrada (Menú -> Jarra, pesada vacía), al quitar el dripper tras guardar el
 //     pour-over queda en la báscula la jarra con la bebida. Como la tara es por software, el peso absoluto
 //     de la Dot (rawWeightGrams) menos la jarra es la bebida. Cada medida afina la retención aprendida.
-//   - Estimada: agua - retención (g de agua por g de café, aprendida; 2.0 al principio). EY~ en pantalla.
+//   - Estimada: agua - retención (g de agua por g de café, aprendida; 2.0 al principio). EY* en pantalla.
 // Espresso: la taza está en la báscula; la bebida es el peso final del shot.
 // ============================================================================
 

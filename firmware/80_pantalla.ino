@@ -84,8 +84,8 @@ void renderPourOverViewerOled() {
     if (recordTds(false, rec.pourId, &pTds, nullptr)) {
       bool est = false;
       const float ey = recordEy(false, rec.pourId, &est);
-      if (rec.hasBloom) snprintf(line4, sizeof(line4), "B+%u TDS%.2f EY%s%.1f", (unsigned)(rec.poursCount - 1), pTds, est ? "~" : "", ey);
-      else              snprintf(line4, sizeof(line4), "%uV TDS%.2f EY%s%.1f", (unsigned)rec.poursCount, pTds, est ? "~" : "", ey);
+      if (rec.hasBloom) snprintf(line4, sizeof(line4), "B+%u TDS%.2f EY%s%.1f", (unsigned)(rec.poursCount - 1), pTds, est ? "*" : "", ey);
+      else              snprintf(line4, sizeof(line4), "%uV TDS%.2f EY%s%.1f", (unsigned)rec.poursCount, pTds, est ? "*" : "", ey);
     } else if (rec.hasBloom) {
       snprintf(line4, sizeof(line4), "BLOOM+%u 3CLK=SALIR", (unsigned)(rec.poursCount - 1));
     } else {
@@ -112,10 +112,12 @@ uint8_t buildMenuItems(uint8_t* ids) {
     ids[n++] = MI_RATIO;
     ids[n++] = MI_TARGET_TIME;
     ids[n++] = MI_TDS;
+    ids[n++] = MI_R2ZERO;
   } else {
     ids[n++] = MI_DOSE;
     ids[n++] = MI_AUTOTIMER;
     ids[n++] = MI_TDS;
+    ids[n++] = MI_R2ZERO;
     ids[n++] = MI_JAR;
   }
   ids[n++] = MI_HISTORY;
@@ -149,6 +151,7 @@ static void menuItemLabel(uint8_t id, uint8_t num, bool editing, char* out, size
     case MI_BRIDGE:      snprintf(out, cap, "%u.PUENTE BOOKOO: %s", num, bookooBridgeEnabled ? "ON" : "OFF"); break;
     case MI_RELINK:      snprintf(out, cap, "%u.RE-VINCULAR DOT", num); break;
     case MI_TDS:         snprintf(out, cap, "%u.TDS (R2)%s", num, r2Connected() ? " ON" : ""); break;
+    case MI_R2ZERO:      snprintf(out, cap, "%u.CERO R2 (DESTIL.)", num); break;
     case MI_JAR:
       if (serverJarGrams > 0.0f) snprintf(out, cap, "%u.JARRA: %.0fG", num, serverJarGrams);
       else                       snprintf(out, cap, "%u.JARRA: PESAR", num);
@@ -382,8 +385,9 @@ void renderTdsMeasureOled() {
   if (!measuring && saved) {
     bool est = false;
     const float ey = recordEy(r2TargetIsShot, r2TargetId, &est);
-    oledDrawText(92, 14, est ? "EY~" : "EY", 1);
-    snprintf(l, sizeof(l), "%.1f%%", ey);
+    oledDrawText(92, 14, est ? "EY*" : "EY", 1);
+    if (ey > 0.0f) snprintf(l, sizeof(l), "%.1f%%", ey);
+    else           snprintf(l, sizeof(l), "--");   // sin bebida estimable (registro sin agua suficiente)
     oledDrawText(128 - 6 * static_cast<int>(strlen(l)), 24, l, 1);
   }
 
@@ -393,6 +397,7 @@ void renderTdsMeasureOled() {
     case R2State::Scanning:   snprintf(l, sizeof(l), "BUSCANDO EL R2..."); break;
     case R2State::Connecting: snprintf(l, sizeof(l), "CONECTANDO..."); break;
     case R2State::Failed:     snprintf(l, sizeof(l), "%s", r2StatusMsg); break;
+    case R2State::Calibrating: snprintf(l, sizeof(l), "HACIENDO EL CERO..."); break;
     case R2State::Measuring:
       if (r2Sampler.phase() == tds::Phase::Temperature) snprintf(l, sizeof(l), "TEMPERATURA %u/%u", r2Sampler.count(), tds::MAX_TESTS);
       else                                              snprintf(l, sizeof(l), "ESTABILIZA %u/%u", r2Sampler.count(), tds::MAX_TESTS);

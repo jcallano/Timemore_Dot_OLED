@@ -119,6 +119,7 @@ void executeButtonMultiClickAction(uint8_t clicks) {
   // 1 CLICK: En pantalla principal -> Cronómetro / shot; en Menú -> Confirmar opción; en Visor -> Cambiar página
   if (clicks == 1) {
     if (uiState == UiState::TdsMeasure) {
+      if (r2State == R2State::Calibrating)                  return;
       if (r2State == R2State::Measuring)                    r2CancelMeasure();
       else if (r2State == R2State::Ready && r2TargetId != 0) r2StartMeasure();
       else                                                  r2Request();
@@ -169,6 +170,10 @@ void executeButtonMultiClickAction(uint8_t clicks) {
           break;
         case MI_TDS:           // medida de TDS con el DiFluid R2
           openTdsScreen();
+          break;
+        case MI_R2ZERO:        // cero del R2 con agua destilada
+          openTdsScreen();
+          r2RequestZero();
           break;
         case MI_JAR:           // jarra vacía sobre la báscula: su peso (sin nada, la borra)
           saveServerJar(rawWeightGrams > 20.0f ? static_cast<float>(rawWeightGrams) : 0.0f);
@@ -427,6 +432,16 @@ void handleSerialCommands() {
       uiState = UiState::Menu;
       menuSelectedIndex = 0;
       pourSavedBannerUntilMs = 0;
+      uiNeedsImmediateRedraw = true;
+    } else if (c == 'o' || c == 'O') {
+      // Cero del R2 (agua destilada en el prisma)
+      openTdsScreen();
+      r2RequestZero();
+      uiNeedsImmediateRedraw = true;
+    } else if (c == 'u' || c == 'U') {
+      // Medir TDS (como 1 clic en la pantalla TDS): abre la pantalla si hace falta
+      if (uiState != UiState::TdsMeasure) openTdsScreen();
+      if (r2State == R2State::Ready) r2StartMeasure(); else r2Request();
       uiNeedsImmediateRedraw = true;
     } else if (c == 'y' || c == 'Y') {
       // Pantalla TDS (R2) del último registro del modo actual

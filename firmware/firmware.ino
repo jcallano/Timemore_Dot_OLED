@@ -417,9 +417,9 @@ BrewMode brewMode                        = BrewMode::PourOver;
 // modo: buildMenuItems() (80_pantalla.ino) rellena la lista con estos identificadores.
 enum MenuItemId : uint8_t {
   MI_MODE, MI_HISTORY, MI_AUTOTIMER, MI_DOSE, MI_RATIO, MI_TARGET_TIME,
-  MI_BRIGHT, MI_BRIDGE, MI_RELINK, MI_UPDATE, MI_SLEEP, MI_EXIT, MI_TDS, MI_JAR
+  MI_BRIGHT, MI_BRIDGE, MI_RELINK, MI_UPDATE, MI_SLEEP, MI_EXIT, MI_TDS, MI_JAR, MI_R2ZERO
 };
-static constexpr uint8_t MENU_MAX_ITEMS  = 14;
+static constexpr uint8_t MENU_MAX_ITEMS  = 15;
 int8_t menuSelectedIndex                 = 0;
 
 // Parámetros de barista configurables desde el Encoder
@@ -546,7 +546,7 @@ struct BrewExtra {
 static_assert(sizeof(BrewExtra) == 8, "BrewExtra cambió de tamaño");
 
 // Estado de la conexión con el DiFluid R2 (58_difluid_r2.ino)
-enum class R2State : uint8_t { Off, Scanning, Connecting, Ready, Measuring, Failed };
+enum class R2State : uint8_t { Off, Scanning, Connecting, Ready, Measuring, Failed, Calibrating };
 
 // Ancla para el generador de prototipos del IDE de Arduino: los prototipos automáticos de todas las
 // pestañas se insertan justo antes de la PRIMERA función de esta pestaña. Si no hubiera ninguna, los

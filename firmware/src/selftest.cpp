@@ -292,6 +292,11 @@ void testDifluid() {
   const uint8_t neg[13] = {0xDF, 0xDF, 0x03, 0x01, 0x07, 0x02, 0xFF, 0xF9, 0x00, 0x02, 0x08, 0xA6, 0x73};
   e = dfproto::decodeAction(dfproto::parseFrame(neg, sizeof(neg)));
   check(e.kind == dfproto::TestEvent::Result && near(e.tds, -0.07f, 0.001f), "R2: TDS negativo (agua) -0.07 %");
+  // Trama real del R2 sin muestra en el prisma
+  const uint8_t noLiq[8] = {0xDF, 0xDF, 0x03, 0xFE, 0x03, 0x00, 0x02, 0x03};
+  e = dfproto::decodeAction(dfproto::parseFrame(noLiq, sizeof(noLiq)));
+  check(e.kind == dfproto::TestEvent::Error && e.errClass == 2 && e.errCode == dfproto::ERR_NO_LIQUID,
+        "R2: error real 'sin liquido' (DF DF 03 FE 03 00 02 03)");
 }
 
 void testTdsSampler() {
@@ -310,7 +315,7 @@ void testTdsSampler() {
   s.reset();
   float v = 9.50f;
   for (int i = 0; i < 8 && s.phase() != tds::Phase::Done; i++, v += 0.05f) s.add({v, 25.0f, 25.2f});
-  check(s.phase() == tds::Phase::Done && (s.flags() & tds::FLAG_EVAP) && near(s.result(), 9.55f, 0.005f),
+  check(s.phase() == tds::Phase::Done && (s.flags() & tds::FLAG_EVAP) && near(s.result(), 9.50f, 0.005f),
         "TDS: evaporacion -> primera lectura estable y marca EVAP", "obtenido %.2f", s.result());
 
   // Filtrado (1.38 %) con ruido pequeño: converge enseguida

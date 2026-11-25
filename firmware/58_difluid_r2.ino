@@ -39,8 +39,9 @@ static NimBLEClient* pR2Client  = nullptr;
 static NimBLERemoteCharacteristic* pR2Char = nullptr;
 char r2Model[12]                = "";
 
-struct R2Raw { uint8_t len; uint8_t b[dfproto::MAX_FRAME + 6]; };
+struct R2Raw { uint32_t ms; uint8_t len; uint8_t b[dfproto::MAX_FRAME + 6]; };
 static QueueHandle_t r2Queue    = nullptr;
+static bool r2LogFrames         = true;   // traza de tramas en el monitor serie (diagnóstico)
 
 // Medida en curso
 tds::Sampler r2Sampler;
@@ -48,6 +49,9 @@ static bool r2TestInFlight      = false;
 static unsigned long r2TestSentMs = 0, r2NextTestAtMs = 0;
 float r2LivePrismC = 0.0f, r2LiveSampleC = 0.0f, r2LiveTds = 0.0f;
 bool r2LiveHaveTemp = false, r2LiveHaveTds = false;
+// Cero (calibración con agua destilada): pedido desde el menú; se lanza al estar conectado
+static bool r2PendingZero       = false;
+static constexpr uint32_t R2_ZERO_TIMEOUT = 120000;   // el R2 espera a que la muestra se estabilice (~50 s)
 // Registro destino: pour-over o shot, por su id
 bool r2TargetIsShot             = false;
 uint16_t r2TargetId             = 0;
@@ -123,6 +127,7 @@ static void r2NotifyCb(NimBLERemoteCharacteristic* c, uint8_t* data, size_t len,
   (void)c; (void)isNotify;
   if (r2Queue == nullptr || data == nullptr) return;
   R2Raw r;
+  r.ms = millis();
   r.len = static_cast<uint8_t>(len > sizeof(r.b) ? sizeof(r.b) : len);
   memcpy(r.b, data, r.len);
   xQueueSend(r2Queue, &r, 0);
@@ -134,6 +139,7 @@ static bool r2Write(uint8_t func, uint8_t cmd, const uint8_t* data, uint8_t len)
   uint8_t buf[dfproto::MAX_FRAME];
   const size_t n = dfproto::buildCmd(func, cmd, data, len, buf, sizeof(buf));
   if (n == 0) return false;
+  if (r2LogFrames) Serial.printf("[R2] %lu ms >> func %u cmd %u\n", millis(), func, cmd);
   return pR2Char->writeValue(buf, n, pR2Char->canWrite());
 }
 
@@ -150,7 +156,7 @@ void r2Request() {
   }
 }
 
-bool r2Connected() { return r2State == R2State::Ready || r2State == R2State::Measuring; }
+bool r2Connected() { return r2State == R2State::Ready || r2State == R2State::Measuring || r2State == R2State::Calibrating; }
 
 void r2StartMeasure() {
   r2LastUseMs = millis();
@@ -163,6 +169,13 @@ void r2StartMeasure() {
   r2NextTestAtMs = millis();
   r2SetState(R2State::Measuring);
   Serial.printf("[R2] Medida para %s #%u\n", r2TargetIsShot ? "shot" : "pour-over", r2TargetId);
+}
+
+// Menú -> Cero R2: con agua destilada en el R2
+void r2RequestZero() {
+  r2PendingZero = true;
+  r2StatusMsg[0] = '\0';
+  r2Request();
 }
 
 void r2CancelMeasure() {
@@ -201,7 +214,15 @@ static void r2OnTestResult(float tdsVal) {
   }
 }
 
+static uint32_t r2FrameRxMs = 0;
 static void r2HandleFrame(const uint8_t* raw, size_t n) {
+  if (r2LogFrames) {
+    char hex[3 * (dfproto::MAX_FRAME + 6) + 1];
+    size_t k = 0;
+    for (size_t i = 0; i < n && k + 4 < sizeof(hex); i++) k += snprintf(hex + k, sizeof(hex) - k, "%02X ", raw[i]);
+    hex[k] = 0;
+    Serial.printf("[R2] %lu ms (rx %lu) << %s\n", millis(), static_cast<unsigned long>(r2FrameRxMs), hex);
+  }
   const dfproto::Frame f = dfproto::parseFrame(raw, n);
   if (!f.valid) return;
   if (f.func == dfproto::FUNC_INFO && f.cmd == dfproto::INFO_MODEL) {
@@ -214,8 +235,17 @@ static void r2HandleFrame(const uint8_t* raw, size_t n) {
     }
     return;
   }
-  if (f.func != dfproto::FUNC_ACTION || f.cmd == dfproto::ACT_CALIBRATE) return;
+  if (f.func != dfproto::FUNC_ACTION) return;
   const dfproto::TestEvent e = dfproto::decodeAction(f);
+  if (f.cmd == dfproto::ACT_CALIBRATE) {   // cero: el R2 responde estado 'calibración terminada' y concentración 0
+    if (e.kind == dfproto::TestEvent::Temperature) { r2LivePrismC = e.prismC; r2LiveSampleC = e.sampleC; r2LiveHaveTemp = true; }
+    if (e.kind == dfproto::TestEvent::Status && e.status == dfproto::ST_CAL_FINISHED) {
+      strncpy(r2StatusMsg, "CERO OK", sizeof(r2StatusMsg) - 1);
+      Serial.println("[R2] Cero hecho.");
+      r2SetState(r2State == R2State::Measuring ? R2State::Measuring : R2State::Ready);
+    }
+    if (e.kind != dfproto::TestEvent::Error) return;
+  }
   switch (e.kind) {
     case dfproto::TestEvent::Temperature:
       r2LivePrismC   = e.prismC;
@@ -227,7 +257,8 @@ static void r2HandleFrame(const uint8_t* raw, size_t n) {
       r2OnTestResult(e.tds);
       break;
     case dfproto::TestEvent::Error:
-      if (e.errClass == 2 && e.errCode == dfproto::ERR_NO_LIQUID)         r2Fail("SIN MUESTRA");
+      if (e.errClass == 2 && e.errCode == dfproto::ERR_CAL_FAILED)        r2Fail("CERO FALLIDO");
+      else if (e.errClass == 2 && e.errCode == dfproto::ERR_NO_LIQUID)    r2Fail("SIN MUESTRA");
       else if (e.errClass == 2 && e.errCode == dfproto::ERR_BEYOND_RANGE) r2Fail("FUERA DE RANGO");
       else if (e.errClass == 3)                                           r2Fail("ERROR DEL R2");
       else                                                                r2Fail("PRUEBA FALLIDA");
@@ -261,7 +292,7 @@ void serviceR2() {
   if (r2EvDisconn) {
     r2EvDisconn = false;
     pR2Char = nullptr;
-    if (r2State == R2State::Ready || r2State == R2State::Measuring) {
+    if (r2State == R2State::Ready || r2State == R2State::Measuring || r2State == R2State::Calibrating) {
       Serial.println("[R2] Desconectado.");
       if (r2State == R2State::Measuring) r2Fail("R2 DESCONECTADO");
       r2SetState(R2State::Off);
@@ -298,7 +329,7 @@ void serviceR2() {
         r2SetState(R2State::Connecting);
         break;
       }
-      if ((now - r2StateSinceMs) > R2_SCAN_MS) {
+      if ((long)(millis() - r2StateSinceMs) > (long)R2_SCAN_MS) {
         if (r2ScanByUs && pScan->isScanning()) pScan->stop();
         r2ScanByUs = false;
         r2Fail("R2 NO ENCONTRADO");
@@ -317,7 +348,7 @@ void serviceR2() {
     }
 
     case R2State::Connecting:
-      if (r2EvLinkFail || (now - r2StateSinceMs) > R2_CONNECT_MS) {
+      if (r2EvLinkFail || (long)(millis() - r2StateSinceMs) > (long)R2_CONNECT_MS) {
         r2EvLinkFail = false;
         if (!r2Triedalt) {   // otro tipo de dirección (pública <-> aleatoria)
           r2Triedalt = true;
@@ -349,9 +380,24 @@ void serviceR2() {
       break;
 
     case R2State::Ready:
-    case R2State::Measuring: {
+    case R2State::Measuring:
+    case R2State::Calibrating: {
       R2Raw r;
-      while (r2Queue != nullptr && xQueueReceive(r2Queue, &r, 0) == pdTRUE) r2HandleFrame(r.b, r.len);
+      while (r2Queue != nullptr && xQueueReceive(r2Queue, &r, 0) == pdTRUE) { r2FrameRxMs = r.ms; r2HandleFrame(r.b, r.len); }
+      if (r2State == R2State::Ready && r2PendingZero) {
+        r2PendingZero = false;
+        if (r2Write(dfproto::FUNC_ACTION, dfproto::ACT_CALIBRATE, nullptr, 0)) {
+          Serial.println("[R2] Haciendo el cero...");
+          r2SetState(R2State::Calibrating);
+        } else {
+          r2Fail("ERROR AL ESCRIBIR");
+        }
+      }
+      if (r2State == R2State::Calibrating) {
+        r2LastUseMs = now;
+        if ((long)(millis() - r2StateSinceMs) > (long)R2_ZERO_TIMEOUT) r2Fail("CERO SIN RESPUESTA");
+        break;
+      }
       if (r2State == R2State::Measuring) {
         r2LastUseMs = now;
         if (!r2TestInFlight && (long)(now - r2NextTestAtMs) >= 0) {
@@ -361,10 +407,10 @@ void serviceR2() {
           } else {
             r2Fail("ERROR AL ESCRIBIR");
           }
-        } else if (r2TestInFlight && (now - r2TestSentMs) > R2_TEST_TIMEOUT) {
+        } else if (r2TestInFlight && (long)(now - r2TestSentMs) > (long)R2_TEST_TIMEOUT) {
           r2Fail("EL R2 NO RESPONDE");
         }
-      } else if (uiState != UiState::TdsMeasure && (now - r2LastUseMs) > R2_IDLE_MS) {
+      } else if (uiState != UiState::TdsMeasure && (long)(now - r2LastUseMs) > (long)R2_IDLE_MS) {
         Serial.println("[R2] Sin uso: desconectando.");
         r2Disconnect();
         r2SetState(R2State::Off);

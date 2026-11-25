@@ -50,8 +50,10 @@ TestEvent decodeAction(const Frame& f) {
   if (!f.valid || f.func != FUNC_ACTION) return e;
   if (f.cmd == ACT_ERROR) {
     e.kind     = TestEvent::Error;
-    e.errClass = f.len > 0 ? f.data[0] : 0;
-    e.errCode  = f.len > 1 ? f.data[1] : 0;
+    // data0 = número de paquete, data1 = clase (2 general, 3 hardware), data2 = código.
+    // La tabla de la documentación omite el número de paquete; el R2 real lo envía (DF DF 03 FE 03 00 02 03).
+    e.errClass = f.len > 1 ? f.data[1] : 0;
+    e.errCode  = f.len > 2 ? f.data[2] : 0;
     return e;
   }
   if (f.cmd == ACT_UNKNOWN_ERROR) {

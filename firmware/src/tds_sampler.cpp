@@ -45,7 +45,9 @@ Phase Sampler::add(const Sample& s) {
   // ¿Temperatura estable? Muestra y prisma cerca, y la muestra casi no cambió desde la prueba anterior
   if (firstStable_ == 0xFF) {
     const bool close  = fabsf(s.sampleC - s.prismC) <= TEMP_GAP_C;
-    const bool steady = (i > 0) && fabsf(s.sampleC - s_[i - 1].sampleC) <= TEMP_STEP_C;
+    // La primera prueba cuenta si la muestra ya llega a la temperatura del prisma (filtrados, muestras frías)
+    const bool steady = (i > 0) ? fabsf(s.sampleC - s_[i - 1].sampleC) <= TEMP_STEP_C
+                                : fabsf(s.sampleC - s.prismC) <= TEMP_STEP_C;
     if (close && steady) firstStable_ = i;
   }
 
