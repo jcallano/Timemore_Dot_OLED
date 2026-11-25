@@ -1,28 +1,30 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Actualizar Timemore Dot OLED por Bluetooth</title>
-<meta name="description" content="Actualiza por Bluetooth el firmware del display para la Timemore Black Mirror Dot (puente para la cafetera Wendougee).">
+<title>Timemore Dot OLED · Bluetooth update and settings</title>
+<meta name="description" content="Update the firmware of the Timemore Black Mirror Dot display over Bluetooth, set its clock and its Wi-Fi.">
 <style>
   :root { color-scheme: dark; }
   body { margin: 0; background: #111; color: #eee; font: 16px/1.5 system-ui, sans-serif; }
   main { max-width: 520px; margin: 0 auto; padding: 24px 16px 48px; }
   h1 { font-size: 1.35rem; margin: 0 0 4px; }
+  h2 { font-size: 1.1rem; margin: 0 0 8px; }
   .sub { color: #9a9a9a; margin: 0 0 20px; }
   .card { background: #1c1c1c; border: 1px solid #2e2e2e; border-radius: 12px; padding: 18px; margin-bottom: 16px; }
   ol { padding-left: 20px; margin: 0; }
   li { margin-bottom: 6px; }
   label { display: block; font-weight: 600; margin: 14px 0 6px; }
-  input[type=file], input[type=text] { width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px;
-    border: 1px solid #3a3a3a; background: #111; color: #eee; font-size: 1rem; }
+  input[type=file], input[type=text], input[type=password] { width: 100%; box-sizing: border-box; padding: 10px;
+    border-radius: 8px; border: 1px solid #3a3a3a; background: #111; color: #eee; font-size: 1rem; }
   #pin { font-size: 1.6rem; letter-spacing: .35em; text-align: center; font-variant-numeric: tabular-nums; }
   button { width: 100%; margin-top: 18px; padding: 14px; font-size: 1.05rem; font-weight: 700; border: 0;
     border-radius: 10px; background: #00b894; color: #000; cursor: pointer; }
+  button.alt { background: #74b9ff; }
   button:disabled { background: #3a3a3a; color: #888; cursor: default; }
   progress { width: 100%; height: 18px; margin-top: 16px; accent-color: #00b894; }
-  #status { margin-top: 10px; min-height: 1.5em; }
+  .status { margin-top: 10px; min-height: 1.5em; }
   .ok { color: #55efc4; } .err { color: #ff7675; } .warn { color: #fdcb6e; }
   a { color: #74b9ff; }
   small { color: #9a9a9a; }
@@ -30,38 +32,51 @@
 </head>
 <body>
 <main>
-  <h1>Actualizar por Bluetooth</h1>
-  <p class="sub">Display para la Timemore Black Mirror Dot · <a href="https://github.com/jcallano/Timemore_Dot_OLED">proyecto en GitHub</a></p>
+  <h1>Bluetooth update and settings</h1>
+  <p class="sub">Display for the Timemore Black Mirror Dot · <a href="https://github.com/jcallano/Timemore_Dot_OLED">project on GitHub</a></p>
 
   <div id="nobt" class="card warn" hidden>
-    Este navegador no tiene Bluetooth web. Usa <b>Chrome o Edge</b> en un ordenador o <b>Chrome en Android</b>.
-    En iPhone, abre esta página con la app <b>Bluefy</b>.
+    This browser has no Web Bluetooth. Use <b>Chrome or Edge</b> on a computer or <b>Chrome on Android</b>.
+    On iPhone, open this page in the <b>Bluefy</b> app.
   </div>
 
   <div class="card">
     <ol>
-      <li>Descarga el firmware: el archivo <b>firmware.ino.bin</b> de la
-        <a href="https://github.com/jcallano/Timemore_Dot_OLED/releases/latest">última versión</a>.</li>
-      <li>En el aparato: <b>3 clics → Actualizar (BLE)</b>. La pantalla muestra un <b>PIN</b>.</li>
-      <li>Elige el archivo, escribe el PIN y pulsa <b>Actualizar</b>.</li>
+      <li>On the device: <b>3 clicks → Update (BLE)</b>. The screen shows a <b>PIN</b>.</li>
+      <li>Type the PIN below, then use any of the sections.</li>
     </ol>
+    <label for="pin">PIN on the screen</label>
+    <input id="pin" type="text" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="000000">
   </div>
 
   <div class="card">
+    <h2>Clock and Wi-Fi</h2>
+    <small>The device has no battery-backed clock. Set it from this phone or computer now, and optionally save
+      your Wi-Fi: then it gets the time by itself at power-up (Wi-Fi is used only for a few seconds, before
+      Bluetooth starts, and then switched off).</small>
+    <label for="ssid">Wi-Fi network (optional)</label>
+    <input id="ssid" type="text" maxlength="32" autocomplete="off" placeholder="Network name">
+    <label for="wpass">Wi-Fi password</label>
+    <input id="wpass" type="password" maxlength="64" autocomplete="off">
+    <small id="tzinfo"></small>
+    <button id="settings" class="alt" disabled>Set clock (and save Wi-Fi)</button>
+    <div id="status2" class="status"></div>
+  </div>
+
+  <div class="card">
+    <h2>Firmware update</h2>
+    <small>Download <b>firmware.ino.bin</b> from the
+      <a href="https://github.com/jcallano/Timemore_Dot_OLED/releases/latest">latest release</a>.</small>
     <label for="file">Firmware (.bin)</label>
     <input id="file" type="file" accept=".bin">
     <small id="fileinfo"></small>
-
-    <label for="pin">PIN de la pantalla</label>
-    <input id="pin" type="text" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="000000">
-
-    <button id="go" disabled>Actualizar</button>
+    <button id="go" disabled>Update</button>
     <progress id="bar" max="100" value="0" hidden></progress>
-    <div id="status"></div>
+    <div id="status" class="status"></div>
   </div>
 
-  <p><small>Protocolo: servicio <code>c0de0001-7d2e-4b5a-9c1e-0a7e5d0f0a01</code>, versión 1.
-    Documentado en <code>firmware/70_ota.ino</code>.</small></p>
+  <p><small>Protocol: service <code>c0de0001-7d2e-4b5a-9c1e-0a7e5d0f0a01</code>, version 2.
+    Documented in <code>firmware/70_ota.ino</code>.</small></p>
 </main>
 
 <script>
@@ -69,19 +84,24 @@
 const SVC  = "c0de0001-7d2e-4b5a-9c1e-0a7e5d0f0a01";
 const CTRL = "c0de0002-7d2e-4b5a-9c1e-0a7e5d0f0a01";
 const DATA = "c0de0003-7d2e-4b5a-9c1e-0a7e5d0f0a01";
-const MAX_APP = 3342336;   // partición de la app (3.2 MB)
-const WINDOW  = 8192;      // bytes sin confirmar como máximo (el aparato tiene 16 KB de búfer)
+const MAX_APP = 3342336;   // app partition (3.2 MB)
+const WINDOW  = 8192;      // max unacknowledged bytes (the device has a 16 KB buffer)
 
 const $ = (id) => document.getElementById(id);
 const fileEl = $("file"), pinEl = $("pin"), goEl = $("go"), barEl = $("bar"), statusEl = $("status");
+const setEl = $("settings"), status2El = $("status2");
 let image = null;
+const tzMin = -new Date().getTimezoneOffset();   // minutes east of UTC (Oman: +240)
+$("tzinfo").textContent = `Time zone of this device: UTC${tzMin >= 0 ? "+" : "-"}${String(Math.floor(Math.abs(tzMin) / 60)).padStart(2, "0")}:${String(Math.abs(tzMin) % 60).padStart(2, "0")}`;
 
-function setStatus(msg, cls) { statusEl.textContent = msg; statusEl.className = cls || ""; }
+function setStatus(el, msg, cls) { el.textContent = msg; el.className = "status " + (cls || ""); }
 
 if (!navigator.bluetooth) { $("nobt").hidden = false; }
 
-function updateButton() {
-  goEl.disabled = !(navigator.bluetooth && image && /^\d{6}$/.test(pinEl.value));
+function pinOk() { return /^\d{6}$/.test(pinEl.value); }
+function updateButtons() {
+  goEl.disabled  = !(navigator.bluetooth && image && pinOk());
+  setEl.disabled = !(navigator.bluetooth && pinOk());
 }
 
 fileEl.addEventListener("change", async () => {
@@ -93,20 +113,20 @@ fileEl.addEventListener("change", async () => {
     const isApp = buf.length > 0x24 && buf[0] === 0xE9 &&
                   buf[0x20] === 0x32 && buf[0x21] === 0x54 && buf[0x22] === 0xCD && buf[0x23] === 0xAB;
     if (!isApp) {
-      setStatus("Ese archivo no es el firmware de la aplicación. Usa firmware.ino.bin (no el merged ni el bootloader).", "err");
+      setStatus(statusEl, "That file is not the application firmware. Use firmware.ino.bin (not the merged or bootloader file).", "err");
     } else if (buf.length > MAX_APP) {
-      setStatus("El archivo es demasiado grande para el aparato.", "err");
+      setStatus(statusEl, "The file is too large for the device.", "err");
     } else {
       image = buf;
       $("fileinfo").textContent = `${f.name} · ${(buf.length / 1024).toFixed(0)} KB`;
-      setStatus("");
+      setStatus(statusEl, "");
     }
   }
-  updateButton();
+  updateButtons();
 });
-pinEl.addEventListener("input", () => { pinEl.value = pinEl.value.replace(/\D/g, "").slice(0, 6); updateButton(); });
+pinEl.addEventListener("input", () => { pinEl.value = pinEl.value.replace(/\D/g, "").slice(0, 6); updateButtons(); });
 
-// Respuestas del aparato por la característica de control
+// Replies from the device on the control characteristic
 function makeLink() {
   const st = { acked: 0, error: null, waiters: [], last: {} };
   st.wake = () => { const w = st.waiters; st.waiters = []; w.forEach((r) => r()); };
@@ -115,7 +135,7 @@ function makeLink() {
     const check = () => {
       if (st.error) return reject(st.error);
       if (pred()) return resolve();
-      if (Date.now() - t0 > ms) return reject(new Error(`Sin respuesta del aparato (${what}).`));
+      if (Date.now() - t0 > ms) return reject(new Error(`No answer from the device (${what}).`));
       st.waiters.push(check);
       setTimeout(() => st.wake(), 250);
     };
@@ -127,54 +147,112 @@ function makeLink() {
     if (v[0] === 0x82) st.acked = u32(1);
     else if (v[0] === 0x81) st.last.start = { status: v[1], mtu: v[2] | (v[3] << 8), ver: v[4] };
     else if (v[0] === 0x83) st.last.end = { status: v[1] };
+    else if (v[0] === 0x85) st.last.set = { status: v[1] };
+    else if (v[0] === 0x86) st.last.time = { status: v[1] };
     else if (v[0] === 0xEE) {
-      const msgs = { 1: "se perdieron datos por el camino", 2: "fallo al escribir la memoria", 3: "el aparato no dio abasto",
-                     4: "el archivo no es un firmware válido", 5: "la transferencia se paró", 6: "llegaron más datos de los esperados" };
-      st.error = new Error(`El aparato canceló la subida: ${msgs[v[1]] || "error " + v[1]}.`);
+      const msgs = { 1: "data was lost on the way", 2: "flash write failed", 3: "the device could not keep up",
+                     4: "the file is not a valid firmware", 5: "the transfer stalled", 6: "more data than expected arrived" };
+      st.error = new Error(`The device cancelled the upload: ${msgs[v[1]] || "error " + v[1]}.`);
     }
     st.wake();
   };
   return st;
 }
 
+async function connect(st, el) {
+  setStatus(el, "Find and choose «TMDot-OTA» in the list…");
+  const device = await navigator.bluetooth.requestDevice({ filters: [{ services: [SVC] }] });
+  setStatus(el, "Connecting…");
+  device.addEventListener("gattserverdisconnected", () => {
+    if (!st.done) { st.error = st.error || new Error("The connection to the device was lost."); st.wake(); }
+  });
+  const server = await device.gatt.connect();
+  const svc = await server.getPrimaryService(SVC);
+  const ctrl = await svc.getCharacteristic(CTRL);
+  const data = await svc.getCharacteristic(DATA);
+  ctrl.addEventListener("characteristicvaluechanged", st.onNotify);
+  await ctrl.startNotifications();
+  return { device, ctrl, data };
+}
+
+function pinBytes() { return Array.from(pinEl.value).map((c) => c.charCodeAt(0)); }
+
+// Clock (06 TIME) and Wi-Fi (05 SET: 1 = network, 2 = password)
+setEl.addEventListener("click", async () => {
+  setEl.disabled = true;
+  let device = null;
+  const st = makeLink();
+  try {
+    ({ device } = await connect(st, status2El).then((r) => { st.ctrl = r.ctrl; return r; }));
+    const ctrl = st.ctrl;
+    const t = new Uint8Array(13);
+    t[0] = 0x06;
+    t.set(pinBytes(), 1);
+    const dv = new DataView(t.buffer);
+    dv.setUint32(7, Math.floor(Date.now() / 1000), true);
+    dv.setInt16(11, tzMin, true);
+    await ctrl.writeValueWithResponse(t);
+    await st.wait(() => st.last.time, 8000, "clock");
+    if (st.last.time.status === 1) throw new Error("Wrong PIN. Check the one shown on the device screen.");
+    if (st.last.time.status !== 0) throw new Error("The device did not accept the time.");
+
+    const ssid = $("ssid").value, pass = $("wpass").value;
+    const enc = new TextEncoder();
+    if (ssid || pass) {
+      for (const [key, val] of [[1, enc.encode(ssid)], [2, enc.encode(pass)]]) {
+        if (val.length > (key === 1 ? 32 : 64)) throw new Error(key === 1 ? "Network name too long." : "Password too long.");
+        const m = new Uint8Array(9 + val.length);
+        m[0] = 0x05;
+        m.set(pinBytes(), 1);
+        m[7] = key;
+        m[8] = val.length;
+        m.set(val, 9);
+        st.last.set = null;
+        await ctrl.writeValueWithResponse(m);
+        await st.wait(() => st.last.set, 8000, "Wi-Fi");
+        if (st.last.set.status !== 0) throw new Error("The device did not accept the Wi-Fi settings.");
+      }
+    }
+    st.done = true;
+    setStatus(status2El, ssid ? `Clock set and Wi-Fi «${ssid}» saved. It will be used at the next power-up.` : "Clock set.", "ok");
+  } catch (e) {
+    if (e && e.name === "NotFoundError") setStatus(status2El, "No device was chosen.", "warn");
+    else setStatus(status2El, (e && e.message) || String(e), "err");
+  } finally {
+    try { if (device && device.gatt.connected) device.gatt.disconnect(); } catch (_) {}
+    updateButtons();
+  }
+});
+
 goEl.addEventListener("click", async () => {
   goEl.disabled = true; fileEl.disabled = true; pinEl.disabled = true;
   barEl.hidden = false; barEl.value = 0;
   let device = null;
   try {
-    setStatus("Busca y elige «TMDot-OTA» en la lista…");
-    device = await navigator.bluetooth.requestDevice({ filters: [{ services: [SVC] }] });
-    setStatus("Conectando…");
     const st = makeLink();
-    device.addEventListener("gattserverdisconnected", () => {
-      if (!st.done) { st.error = st.error || new Error("Se perdió la conexión con el aparato."); st.wake(); }
-    });
-    const server = await device.gatt.connect();
-    const svc = await server.getPrimaryService(SVC);
-    const ctrl = await svc.getCharacteristic(CTRL);
-    const data = await svc.getCharacteristic(DATA);
-    ctrl.addEventListener("characteristicvaluechanged", st.onNotify);
-    await ctrl.startNotifications();
+    const link = await connect(st, statusEl);
+    device = link.device;
+    const ctrl = link.ctrl, data = link.data;
 
-    // START: tamaño + PIN
+    // START: size + PIN
     const size = image.length;
     const start = new Uint8Array(11);
     start[0] = 0x01;
     new DataView(start.buffer).setUint32(1, size, true);
-    for (let i = 0; i < 6; i++) start[5 + i] = pinEl.value.charCodeAt(i);
+    start.set(pinBytes(), 5);
     await ctrl.writeValueWithResponse(start);
-    await st.wait(() => st.last.start, 10000, "inicio");
+    await st.wait(() => st.last.start, 10000, "start");
     const s = st.last.start;
-    if (s.status === 1) throw new Error("PIN incorrecto. Mira el que muestra la pantalla del aparato.");
-    if (s.status !== 0) throw new Error("El aparato no acepta este archivo (no cabe o no es válido).");
+    if (s.status === 1) throw new Error("Wrong PIN. Check the one shown on the device screen.");
+    if (s.status !== 0) throw new Error("The device does not accept this file (too large or not valid).");
 
-    // Datos: [offset u32][bytes], con ventana de 8 KB
+    // Data: [offset u32][bytes], 8 KB window
     const chunk = Math.max(16, Math.min(s.mtu - 3 - 4, 508));
-    setStatus(`Enviando… (paquetes de ${chunk} bytes)`);
+    setStatus(statusEl, `Sending… (${chunk}-byte packets)`);
     const t0 = Date.now();
     let off = 0;
     while (off < size) {
-      if (off - st.acked >= WINDOW) await st.wait(() => off - st.acked < WINDOW, 20000, "confirmación");
+      if (off - st.acked >= WINDOW) await st.wait(() => off - st.acked < WINDOW, 20000, "acknowledgement");
       if (st.error) throw st.error;
       const n = Math.min(chunk, size - off);
       const pkt = new Uint8Array(4 + n);
@@ -187,29 +265,29 @@ goEl.addEventListener("click", async () => {
       off += n;
       barEl.value = Math.round((st.acked / size) * 100);
     }
-    await st.wait(() => st.acked >= size, 30000, "último bloque");
+    await st.wait(() => st.acked >= size, 30000, "last block");
     barEl.value = 100;
 
-    // END: el aparato verifica la imagen y se reinicia
-    setStatus("Verificando…");
+    // END: the device verifies the image and restarts
+    setStatus(statusEl, "Verifying…");
     await ctrl.writeValueWithResponse(new Uint8Array([0x03]));
-    await st.wait(() => st.last.end, 30000, "verificación");
-    if (st.last.end.status !== 0) throw new Error("El aparato rechazó el firmware al verificarlo. No se ha instalado nada.");
+    await st.wait(() => st.last.end, 30000, "verification");
+    if (st.last.end.status !== 0) throw new Error("The device rejected the firmware when verifying it. Nothing was installed.");
     st.done = true;
     const secs = ((Date.now() - t0) / 1000).toFixed(0);
-    setStatus(`¡Actualizado en ${secs} s! El aparato se reinicia con el firmware nuevo.`, "ok");
+    setStatus(statusEl, `Updated in ${secs} s! The device restarts with the new firmware.`, "ok");
   } catch (e) {
-    if (e && e.name === "NotFoundError") setStatus("No se eligió ningún aparato.", "warn");
-    else setStatus((e && e.message) || String(e), "err");
+    if (e && e.name === "NotFoundError") setStatus(statusEl, "No device was chosen.", "warn");
+    else setStatus(statusEl, (e && e.message) || String(e), "err");
     try {
       if (device && device.gatt.connected) {
         const svc = await device.gatt.getPrimaryService(SVC);
         await (await svc.getCharacteristic(CTRL)).writeValueWithResponse(new Uint8Array([0x04]));
       }
-    } catch (_) { /* el aparato ya no está */ }
+    } catch (_) { /* the device is gone */ }
   } finally {
     try { if (device && device.gatt.connected) device.gatt.disconnect(); } catch (_) {}
-    fileEl.disabled = false; pinEl.disabled = false; updateButton();
+    fileEl.disabled = false; pinEl.disabled = false; updateButtons();
   }
 });
 </script>

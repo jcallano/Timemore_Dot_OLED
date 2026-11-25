@@ -474,6 +474,23 @@ static void dumpOledFramebuffer() {
   selfTestPrint("[FB] END");
 }
 
+// Número decimal que sigue a una orden (espera hasta 300 ms entre dígitos)
+static uint32_t readSerialNumber() {
+  uint32_t v = 0;
+  unsigned long t0 = millis();
+  while ((millis() - t0) < 300UL) {
+    if (Serial.available() <= 0) { delay(1); continue; }
+    const int ch = Serial.peek();
+    if (ch < 0x30 || ch > 0x39) break;
+    Serial.read();
+    v = v * 10UL + static_cast<uint32_t>(ch - 0x30);
+    t0 = millis();
+  }
+  return v;
+}
+
+void setClockFromEpoch(uint32_t epoch, int16_t tzMin);   // 75_wifi_time.ino
+
 void handleSerialCommands() {
   while (Serial.available() > 0) {
     char c = static_cast<char>(Serial.read());
@@ -531,6 +548,10 @@ void handleSerialCommands() {
       profileShowsShot = (brewMode == BrewMode::Espresso);
       uiState = UiState::Profile;
       pourSavedBannerUntilMs = 0;
+      uiNeedsImmediateRedraw = true;
+    } else if (c == 'z' || c == 'Z') {
+      // Poner el reloj: z<segundos desde 1970, UTC> (zona: la guardada)
+      setClockFromEpoch(readSerialNumber(), tzOffsetMin);
       uiNeedsImmediateRedraw = true;
     } else if (c == '#') {
       resetTasteModel();

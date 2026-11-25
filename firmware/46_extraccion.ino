@@ -241,6 +241,14 @@ void startNewBag() {
   Serial.printf("[EXTRACCION] Bolsa nueva: #%u\n", currentBagId);
 }
 
+uint32_t nowEpochOrZero();   // 75_wifi_time.ino
+
+// Fecha y hora del café (0 = sin hora)
+uint32_t recordEpoch(bool shot, uint16_t id) {
+  const BrewExtra* e = findExtra(shot, id, false);
+  return e ? e->brewEpoch : 0;
+}
+
 // Al guardar un pour-over o un shot real: molienda y bolsa del momento
 void recordBrewContext(bool shot, uint16_t id) {
   BrewExtra* e = findExtra(shot, id, true);
@@ -250,6 +258,7 @@ void recordBrewContext(bool shot, uint16_t id) {
   e->id    = id;
   e->taste = TASTE_NONE;
   const float g = shot ? grindEsp : grindPour;
+  e->brewEpoch = nowEpochOrZero();
   e->grindX10 = static_cast<uint16_t>(lroundf(g * 10.0f));
   e->bagId    = currentBagId;
   saveExtras(shot);

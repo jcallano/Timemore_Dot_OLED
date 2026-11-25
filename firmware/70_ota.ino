@@ -13,6 +13,10 @@
 //     -> 04 ABORT                            <- 84 00
 //                                            <- 82 [escritos u32]   progreso tras cada bloque de 4 KB
 //                                            <- EE [código][recibidos u32]  error
+//     -> 05 SET  [pin 6 ASCII][clave u8][long u8][valor]   <- 85 [estado]   (versión 2)
+//          clave 1 = red WiFi (SSID, hasta 32), 2 = clave WiFi (hasta 64; guarda la red y la clave)
+//     -> 06 TIME [pin 6 ASCII][epoch u32][zona i16 min]    <- 86 [estado]   (versión 2)
+//     Estados de SET y TIME: 0 OK, 1 PIN incorrecto, 2 datos no válidos.
 //     Estados de START: 0 OK, 1 PIN incorrecto, 2 tamaño no válido, 3 Update.begin() falló.
 //     Errores EE: 1 desfase de offset, 2 fallo de escritura, 3 búfer lleno, 4 no es un firmware de
 //     aplicación ESP32, 5 tiempo agotado, 6 recibido de más.
@@ -28,14 +32,19 @@ static const char* OTA_SVC_UUID  = "c0de0001-7d2e-4b5a-9c1e-0a7e5d0f0a01";
 static const char* OTA_CTRL_UUID = "c0de0002-7d2e-4b5a-9c1e-0a7e5d0f0a01";
 static const char* OTA_DATA_UUID = "c0de0003-7d2e-4b5a-9c1e-0a7e5d0f0a01";
 static const char* OTA_DEV_NAME  = "TMDot-OTA";
-static constexpr uint8_t  OTA_PROTO_VERSION   = 1;
+static constexpr uint8_t  OTA_PROTO_VERSION   = 2;
 static constexpr size_t   OTA_STREAM_BYTES    = 16384;   // el cliente usa una ventana de 8 KB
 static constexpr size_t   OTA_BLOCK_BYTES     = 4096;    // escritura y confirmación por bloques de 4 KB
 static constexpr uint32_t OTA_IDLE_EXIT_MS    = 300000UL; // 5 min sin actividad -> salir
 static constexpr uint32_t OTA_STALL_MS        = 20000UL;  // 20 s sin datos durante una subida -> abortar
 static constexpr uint8_t  OTA_MAX_PIN_TRIES   = 5;
 
-enum OtaCtrlCmd : uint8_t { OTA_CMD_START = 0x01, OTA_CMD_END = 0x03, OTA_CMD_ABORT = 0x04 };
+enum OtaCtrlCmd : uint8_t { OTA_CMD_START = 0x01, OTA_CMD_END = 0x03, OTA_CMD_ABORT = 0x04,
+                            OTA_CMD_SET = 0x05, OTA_CMD_TIME = 0x06 };
+
+// Definidas en 75_wifi_time.ino
+void saveWifiCredentials(const char* ssid, const char* pass);
+void setClockFromEpoch(uint32_t epoch, int16_t tzMin);
 
 static StreamBufferHandle_t otaStream   = nullptr;
 static NimBLECharacteristic* otaCtrlChr = nullptr;
@@ -53,7 +62,7 @@ static volatile unsigned long otaLastRxMs = 0;
 
 // Orden de control pendiente (la ejecuta el bucle, que es quien toca Update)
 static volatile bool     otaCtrlPending  = false;
-static uint8_t           otaCtrlBuf[16];
+static uint8_t           otaCtrlBuf[112];
 static volatile size_t   otaCtrlLen      = 0;
 
 static void otaNotify(const uint8_t* data, size_t len) {
@@ -249,7 +258,7 @@ void enterBleOtaMode() {
 
     // Órdenes de control
     if (otaCtrlPending) {
-      uint8_t cmd[16];
+      uint8_t cmd[112];
       size_t len = otaCtrlLen;
       memcpy(cmd, otaCtrlBuf, len);
       otaCtrlPending = false;
@@ -307,6 +316,40 @@ void enterBleOtaMode() {
           ESP.restart();
         }
         renderOtaScreenOled(TR("ERROR: IMAGEN MALA", "ERROR: BAD IMAGE"), -1);
+
+      } else if ((cmd[0] == OTA_CMD_SET && len >= 9) || (cmd[0] == OTA_CMD_TIME && len >= 13)) {
+        // Ajustes desde la página web: red WiFi y hora (con el PIN de la pantalla)
+        static char pendSsid[33] = "";
+        uint8_t status = 0;
+        if (memcmp(&cmd[1], otaPin, 6) != 0) {
+          status = 1;
+          pinFails++;
+          renderOtaScreenOled(TR("PIN INCORRECTO", "WRONG PIN"), -1);
+        } else if (cmd[0] == OTA_CMD_TIME) {
+          const uint32_t epoch = (uint32_t)cmd[7] | ((uint32_t)cmd[8] << 8) | ((uint32_t)cmd[9] << 16) | ((uint32_t)cmd[10] << 24);
+          const int16_t tz = static_cast<int16_t>((uint16_t)cmd[11] | ((uint16_t)cmd[12] << 8));
+          setClockFromEpoch(epoch, tz);
+          renderOtaScreenOled(TR("HORA PUESTA", "TIME SET"), -1);
+        } else {
+          const uint8_t key = cmd[7], vlen = cmd[8];
+          if (9u + vlen > len) {
+            status = 2;
+          } else if (key == 1 && vlen <= 32) {
+            memcpy(pendSsid, &cmd[9], vlen);
+            pendSsid[vlen] = '\0';
+          } else if (key == 2 && vlen <= 64) {
+            char pass[65];
+            memcpy(pass, &cmd[9], vlen);
+            pass[vlen] = '\0';
+            saveWifiCredentials(pendSsid, pass);
+            renderOtaScreenOled(pendSsid[0] ? TR("WIFI GUARDADO", "WIFI SAVED") : TR("WIFI BORRADO", "WIFI CLEARED"), -1);
+          } else {
+            status = 2;
+          }
+        }
+        uint8_t resp[2] = {static_cast<uint8_t>(cmd[0] | 0x80), status};
+        otaNotify(resp, sizeof(resp));
+        if (pinFails >= OTA_MAX_PIN_TRIES) break;
 
       } else if (cmd[0] == OTA_CMD_ABORT) {
         abortUpdate(TR("CANCELADO", "CANCELLED"), 0);

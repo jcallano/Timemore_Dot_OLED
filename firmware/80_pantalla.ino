@@ -181,7 +181,13 @@ void renderSettingsMenuOled() {
   char hdrBuf[22];
   float w = currentWeightGrams;
   if (fabsf(w) < 0.05f) w = 0.0f;
-  snprintf(hdrBuf, sizeof(hdrBuf), TR("MENU  PESO:%5.1fG", "MENU  WEIGHT:%5.1fG"), w);
+  if (clockIsSet()) {
+    char hm[8];
+    formatClockHM(hm, sizeof(hm));
+    snprintf(hdrBuf, sizeof(hdrBuf), "MENU %s  %5.1fG", hm, w);
+  } else {
+    snprintf(hdrBuf, sizeof(hdrBuf), TR("MENU  PESO:%5.1fG", "MENU  WEIGHT:%5.1fG"), w);
+  }
   oledDrawText(4, 2, hdrBuf, 1, true);
 
   uint8_t ids[MENU_MAX_ITEMS];
@@ -550,7 +556,13 @@ void renderTdsMeasureOled() {
       break;
   }
   oledDrawText(0, 34, l, 1);
-  if (r2LiveHaveTemp && (measuring || r2State == R2State::Ready)) {
+  const uint32_t be = recordEpoch(r2TargetIsShot, r2TargetId);
+  if (!measuring && be != 0) {
+    char dt[20];
+    formatDateTime(be, dt, sizeof(dt));
+    snprintf(l, sizeof(l), TR("HECHO %s", "BREWED %s"), dt);
+    oledDrawText(0, 44, l, 1);
+  } else if (r2LiveHaveTemp && (measuring || r2State == R2State::Ready)) {
     snprintf(l, sizeof(l), TR("P %.1fC  M %.1fC", "P %.1fC  S %.1fC"), r2LivePrismC, r2LiveSampleC);
     oledDrawText(0, 44, l, 1);
   }

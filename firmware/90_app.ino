@@ -54,6 +54,9 @@ void setup() {
   loadSavedScaleFromNVS();
 
   weightQueue = xQueueCreate(WEIGHT_QUEUE_LEN, sizeof(WeightSample));
+  // Hora por WiFi ANTES del Bluetooth (no comparten la radio); solo si hace falta
+  loadWifiSettings();
+  wifiTimeSyncAtBoot();
   initBleStack();
   startTimemoreScan();
 }

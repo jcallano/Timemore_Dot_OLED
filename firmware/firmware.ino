@@ -93,6 +93,9 @@ struct NonBlockingUsbSerial {
   int available() {
     return ::Serial.available();
   }
+  int peek() {
+    return ::Serial.peek();
+  }
   int read() {
     return ::Serial.read();
   }
@@ -557,7 +560,7 @@ struct BrewExtra {
   uint16_t bagId;        // bolsa de café (0 = desconocida)
   uint8_t  taste;        // sabor: nibble bajo agrio/amargo + 2, alto aguado/intenso + 2 (0xFF = sin valorar)
   uint8_t  flags;        // reservado
-  uint32_t reserved;
+  uint32_t brewEpoch;    // fecha y hora del café (0 = sin hora)
 };
 static_assert(sizeof(BrewExtra) == 16, "BrewExtra cambió de tamaño");
 static constexpr uint8_t TASTE_NONE = 0xFF;
