@@ -68,6 +68,7 @@
 #include "src/difluid_protocol.h"
 #include "src/tds_sampler.h"
 #include "src/brew_advisor.h"
+#include "src/taste_model.h"
 
 // ============================================================================
 // WRAPPER USB-SERIAL/JTAG (HWCDC) 100% NO BLOQUEANTE CUANDO EL MONITOR ESTÁ CERRADO
@@ -409,7 +410,7 @@ static constexpr uint8_t BOOKOO_SCREEN_VIEW = NUM_SCREEN_VIEWS;  // vista extra 
 //   TdsMeasure   -> medida de TDS con el DiFluid R2 (58_difluid_r2.ino) para un registro del historial
 //   Taste        -> "¿cómo sabe?" (agrio/amargo, aguado/intenso) ANTES de ver el gráfico
 //   Chart        -> gráfico de control TDS/EY y sugerencia (46_extraccion.ino)
-enum class UiState : uint8_t { Main, Menu, MenuEdit, PourViewer, TdsMeasure, Taste, Chart };
+enum class UiState : uint8_t { Main, Menu, MenuEdit, PourViewer, TdsMeasure, Taste, Chart, Profile };
 UiState uiState                          = UiState::Main;
 
 // Modo de preparación (Menú -> 1. Modo). Se guarda en la NVS.
@@ -421,9 +422,9 @@ BrewMode brewMode                        = BrewMode::PourOver;
 enum MenuItemId : uint8_t {
   MI_MODE, MI_HISTORY, MI_AUTOTIMER, MI_DOSE, MI_RATIO, MI_TARGET_TIME,
   MI_BRIGHT, MI_BRIDGE, MI_RELINK, MI_UPDATE, MI_SLEEP, MI_EXIT, MI_TDS, MI_JAR, MI_R2ZERO,
-  MI_GRIND, MI_BAG, MI_GRIND_DIR
+  MI_GRIND, MI_BAG, MI_GRIND_DIR, MI_PROFILE
 };
-static constexpr uint8_t MENU_MAX_ITEMS  = 16;
+static constexpr uint8_t MENU_MAX_ITEMS  = 17;
 int8_t menuSelectedIndex                 = 0;
 
 // Parámetros de barista configurables desde el Encoder

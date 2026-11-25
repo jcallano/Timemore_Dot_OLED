@@ -40,6 +40,7 @@ void setup() {
   initPsramAndLoadPours();
   loadEspressoSettingsAndShots();   // modo, receta de espresso e historial de shots
   loadBrewExtras();                 // TDS y bebida de cada registro, jarra
+  loadTasteModel();                 // red neuronal del gusto (la primera vez se preentrena)
   loadR2Settings();                 // refractómetro DiFluid R2 vinculado
   initOledDisplay();
   updateBatteryAndPowerManagement();

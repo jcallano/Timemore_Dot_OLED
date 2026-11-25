@@ -245,6 +245,10 @@ void startNewBag() {
 void recordBrewContext(bool shot, uint16_t id) {
   BrewExtra* e = findExtra(shot, id, true);
   if (e == nullptr) return;
+  // Café nuevo: nada de un registro anterior con el mismo número (el anillo reutiliza los ids)
+  memset(e, 0, sizeof(BrewExtra));
+  e->id    = id;
+  e->taste = TASTE_NONE;
   const float g = shot ? grindEsp : grindPour;
   e->grindX10 = static_cast<uint16_t>(lroundf(g * 10.0f));
   e->bagId    = currentBagId;
@@ -316,6 +320,8 @@ bool buildAdvice(bool shot, uint16_t id, advisor::Advice& out) {
   return true;
 }
 
+static void tasteModelLearn(bool shot, uint16_t id);
+
 // Respuesta a "¿cómo sabe?" (-2..2 en cada eje). Si gusta, mueve el punto dulce hacia ese café.
 void storeTaste(bool shot, uint16_t id, int8_t acidBitter, int8_t strength) {
   BrewExtra* e = findExtra(shot, id, true);
@@ -331,5 +337,122 @@ void storeTaste(bool shot, uint16_t id, int8_t acidBitter, int8_t strength) {
       saveSweetSpots();
     }
   }
+  tasteModelLearn(shot, id);   // la red neuronal aprende de esta valoración
   Serial.printf("[SABOR] %s #%u: agrio/amargo %+d, aguado/intenso %+d\n", shot ? "Shot" : "Pour", id, acidBitter, strength);
+}
+
+// ---------------------------------------------------------------------------
+// Modelo de gusto (red neuronal, src/taste_model): aprende con cada valoración
+// ---------------------------------------------------------------------------
+taste::Model tasteModel;
+static const char* NVS_NN_NAMESPACE = "tmdot_nn";
+
+static void saveTasteModel() {
+  Preferences p;
+  p.begin(NVS_NN_NAMESPACE, false);
+  p.putBytes("w", &tasteModel.weights(), sizeof(taste::Weights));
+  p.end();
+}
+
+void loadTasteModel() {
+  Preferences p;
+  p.begin(NVS_NN_NAMESPACE, true);
+  bool ok = false;
+  if (p.getBytesLength("w") == sizeof(taste::Weights)) {
+    p.getBytes("w", &tasteModel.weights(), sizeof(taste::Weights));
+    ok = tasteModel.valid();
+  }
+  p.end();
+  if (!ok) {
+    const unsigned long t0 = millis();
+    tasteModel.init();   // preentrenamiento con la regla (una sola vez)
+    saveTasteModel();
+    Serial.printf("[GUSTO] Red neuronal nueva, preentrenada en %lu ms\n", millis() - t0);
+  }
+  Serial.printf("[GUSTO] Red neuronal 6-8-2%s: %u valoraciones aprendidas\n",
+                taste::usesDsp() ? " (ESP-DSP)" : "", tasteModel.weights().samplesSeen);
+}
+
+// Orden serie '#': la red vuelve a empezar (olvida lo aprendido)
+void resetTasteModel() {
+  tasteModel.init();
+  saveTasteModel();
+  Serial.println("[GUSTO] Red neuronal reiniciada.");
+}
+
+// Muestra de entrenamiento de un registro con TDS y sabor
+static bool recordSample(bool shot, uint16_t id, taste::Sample& s) {
+  float v;
+  int8_t ab, st;
+  if (!recordTds(shot, id, &v, nullptr) || !recordTaste(shot, id, &ab, &st)) return false;
+  const float ey = recordEy(shot, id, nullptr);
+  if (ey <= 0.0f) return false;
+  s.espresso   = shot;
+  s.ey         = ey;
+  s.tds        = v;
+  s.acidBitter = ab;
+  s.strength   = st;
+  if (shot) {
+    const int8_t k = shotIndexById(id);
+    if (k < 0 || savedShots[k].doseGrams <= 0.1f) return false;
+    s.ratio = savedShots[k].yieldGrams / savedShots[k].doseGrams;
+    s.bloom = false;
+  } else {
+    const PourOverRecord* r = findPourById(id);
+    if (r == nullptr) return false;
+    s.ratio = r->finalRatio;
+    s.bloom = r->hasBloom != 0;
+  }
+  return true;
+}
+
+// Entrena la red con la valoración nueva y repasa las demás guardadas
+static void tasteModelLearn(bool shot, uint16_t id) {
+  taste::Sample s;
+  if (!recordSample(shot, id, s)) return;
+  static taste::Sample hist[MAX_SAVED_POURS + MAX_SAVED_SHOTS];
+  int nh = 0;
+  for (uint8_t i = 0; i < MAX_SAVED_POURS; i++)
+    if (pourExtras[i].id != 0 && !(!shot && pourExtras[i].id == id) && recordSample(false, pourExtras[i].id, hist[nh])) nh++;
+  for (uint8_t i = 0; i < MAX_SAVED_SHOTS; i++)
+    if (shotExtras[i].id != 0 && !(shot && shotExtras[i].id == id) && recordSample(true, shotExtras[i].id, hist[nh])) nh++;
+  float pab, pst;
+  tasteModel.predict(s, &pab, &pst);
+  const unsigned long t0 = millis();
+  tasteModel.learn(s, hist, nh);
+  saveTasteModel();
+  Serial.printf("[GUSTO] Prevision %+.1f/%+.1f, valoracion %+d/%+d | aprendido en %lu ms con %d cafes mas\n",
+                pab, pst, s.acidBitter, s.strength, millis() - t0, nh);
+}
+
+// Descripción del gusto aprendido (hasta 5 líneas de 21 caracteres)
+uint8_t describeTaste(bool shot, char lines[][22]) {
+  const taste::Weights& w = tasteModel.weights();
+  const float ratio = shot ? espRatio : 16.0f;
+  // Pista: la media de los cafés valorados de este modo (o la zona SCA si no hay)
+  float sEy = 0.0f, sT = 0.0f;
+  int ns = 0;
+  const BrewExtra* tb = shot ? shotExtras : pourExtras;
+  const uint8_t nt = shot ? MAX_SAVED_SHOTS : MAX_SAVED_POURS;
+  for (uint8_t i = 0; i < nt; i++) {
+    taste::Sample smp;
+    if (tb[i].id != 0 && recordSample(shot, tb[i].id, smp)) { sEy += smp.ey; sT += smp.tds; ns++; }
+  }
+  const float hEy = ns ? sEy / ns : 20.0f, hT = ns ? sT / ns : (shot ? 10.0f : 1.30f);
+  float ey, tv;
+  tasteModel.sweetSpot(shot, ratio, hEy, hT, &ey, &tv);
+  uint8_t n = 0;
+  snprintf(lines[n++], 22, shot ? "EY %.1f%%  TDS %.1f%%" : "EY %.1f%%  TDS %.2f%%", ey, tv);
+  if (w.samplesSeen == 0) {
+    snprintf(lines[n++], 22, "AUN NO TE CONOZCO:");
+    snprintf(lines[n++], 22, "PARTO DE LA ZONA SCA");
+    snprintf(lines[n++], 22, "VALORA TUS CAFES");
+    return n;
+  }
+  snprintf(lines[n++], 22, "EXTRACCION %s", ey < 19.0f ? "BAJA" : (ey > 21.0f ? "ALTA" : "MEDIA"));
+  const float rel = shot ? (tv - 10.0f) / 1.5f : (tv - 1.30f) / 0.15f;
+  snprintf(lines[n++], 22, "CUERPO %s", rel < -0.5f ? "LIGERO" : (rel > 0.5f ? "INTENSO" : "MEDIO"));
+  const float slope = tasteModel.bitterPerEy(shot, ey, tv, ratio);
+  snprintf(lines[n++], 22, "%s", slope > 0.7f ? "SENSIBLE AL AMARGOR" : (slope < 0.3f ? "TOLERAS EL AMARGOR" : "AMARGOR: NORMAL"));
+  return n;
 }

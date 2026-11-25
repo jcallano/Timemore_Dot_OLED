@@ -140,6 +140,10 @@ void executeButtonMultiClickAction(uint8_t clicks) {
 
   // 1 CLICK: En pantalla principal -> Cronómetro / shot; en Menú -> Confirmar opción; en Visor -> Cambiar página
   if (clicks == 1) {
+    if (uiState == UiState::Profile) {
+      uiState = UiState::Main;
+      return;
+    }
     if (uiState == UiState::Taste) {
       if (tasteStep == 0) {
         tasteStep = 1;
@@ -222,6 +226,10 @@ void executeButtonMultiClickAction(uint8_t clicks) {
           openTdsScreen();
           r2RequestZero();
           break;
+        case MI_PROFILE:       // lo que ha aprendido la red neuronal
+          profileShowsShot = (brewMode == BrewMode::Espresso);
+          uiState = UiState::Profile;
+          break;
         case MI_BAG:           // bolsa de café nueva: historial de molienda limpio
           startNewBag();
           break;
@@ -270,7 +278,9 @@ void applyEncoderDelta(int32_t delta) {
     uiNeedsImmediateRedraw = true;
     registerUserOrScaleActivity();
 
-    if (uiState == UiState::Taste) {
+    if (uiState == UiState::Profile) {
+      profileShowsShot = !profileShowsShot;
+    } else if (uiState == UiState::Taste) {
       int8_t& v = (tasteStep == 0) ? tasteAB : tasteST;
       v = static_cast<int8_t>(constrain(static_cast<int>(v) + (delta > 0 ? 1 : -1), -2, 2));
     } else if (uiState == UiState::Chart) {
@@ -512,6 +522,14 @@ void handleSerialCommands() {
       uiNeedsImmediateRedraw = true;
     } else if (c == '<' || c == '>') {
       applyEncoderDelta(c == '>' ? 1 : -1);   // giro simulado
+    } else if (c == 'p' || c == 'P') {
+      // Tu gusto (red neuronal)
+      profileShowsShot = (brewMode == BrewMode::Espresso);
+      uiState = UiState::Profile;
+      pourSavedBannerUntilMs = 0;
+      uiNeedsImmediateRedraw = true;
+    } else if (c == '#') {
+      resetTasteModel();
     } else if (c == '.') {
       executeButtonMultiClickAction(1);        // clic simulado
     } else if (c == 'j' || c == 'J') {

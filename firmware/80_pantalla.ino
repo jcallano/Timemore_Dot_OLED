@@ -126,6 +126,7 @@ uint8_t buildMenuItems(uint8_t* ids) {
     ids[n++] = MI_BAG;
     ids[n++] = MI_GRIND_DIR;
   }
+  ids[n++] = MI_PROFILE;
   ids[n++] = MI_HISTORY;
   ids[n++] = MI_MODE;
   ids[n++] = MI_BRIGHT;
@@ -157,6 +158,7 @@ static void menuItemLabel(uint8_t id, uint8_t num, bool editing, char* out, size
     case MI_BRIDGE:      snprintf(out, cap, "%u.PUENTE BOOKOO: %s", num, bookooBridgeEnabled ? "ON" : "OFF"); break;
     case MI_RELINK:      snprintf(out, cap, "%u.RE-VINCULAR DOT", num); break;
     case MI_TDS:         snprintf(out, cap, "%u.TDS (R2)%s", num, r2Connected() ? " ON" : ""); break;
+    case MI_PROFILE:     snprintf(out, cap, "%u.TU GUSTO (IA)", num); break;
     case MI_GRIND:       snprintf(out, cap, "%u.MOLINO: %.1f%s", num, grindForMode(), mark); break;
     case MI_BAG:         snprintf(out, cap, "%u.BOLSA NUEVA (#%u)", num, currentBagId); break;
     case MI_GRIND_DIR:   snprintf(out, cap, "%u.MOLINO+: %s", num, grindUpCoarser ? "GRUESO" : "FINO"); break;
@@ -343,6 +345,22 @@ void renderShotViewerOled() {
     oledDrawHLine(0, 51, 128, true);
     oledDrawText(2, 55, l4, 1);
   }
+}
+
+// Tu gusto (red neuronal): lo que ha aprendido de tus valoraciones. Girar cambia filtro / espresso.
+bool profileShowsShot = false;
+void renderProfileOled() {
+  oledFillRect(0, 0, 128, 11, true);
+  oledDrawText(2, 2, profileShowsShot ? "TU GUSTO: ESPRESSO" : "TU GUSTO: FILTRADO", 1, true);
+  char lines[5][22];
+  const uint8_t n = describeTaste(profileShowsShot, lines);
+  for (uint8_t i = 0; i < n && i < 4; i++) oledDrawText(0, 14 + i * 10, lines[i], 1);
+  oledDrawHLine(0, 54, 128, true);
+  const taste::Weights& w = tasteModel.weights();
+  char f[24];
+  if (w.samplesSeen == 0) snprintf(f, sizeof(f), "RED NEURONAL: 0 CAFES");
+  else                    snprintf(f, sizeof(f), "%u CAFES ERROR %.1f", w.samplesSeen, 0.5f * (w.maeAb + w.maeSt));
+  oledDrawText(0, 56, f, 1);
 }
 
 // ============================================================================
@@ -722,6 +740,12 @@ void renderOledScreen() {
   if (uiState == UiState::PourViewer) {
     if (viewerShowsShots) renderShotViewerOled();
     else                  renderPourOverViewerOled();
+    oledFlush();
+    return;
+  }
+
+  if (uiState == UiState::Profile) {
+    renderProfileOled();
     oledFlush();
     return;
   }

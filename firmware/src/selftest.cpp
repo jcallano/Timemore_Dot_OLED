@@ -8,6 +8,7 @@
 #include "difluid_protocol.h"
 #include "tds_sampler.h"
 #include "brew_advisor.h"
+#include "taste_model.h"
 #include "flow_engine.h"
 #include "timemore_protocol.h"
 
@@ -372,6 +373,38 @@ void testAdvisor() {
   check(near(tEy, 20.6f, 0.001f) && near(tTds, 1.34f, 0.001f), "Punto dulce: se mueve un 20 % hacia el cafe que gusto");
 }
 
+void testTasteModel() {
+  static taste::Model m;   // static: los pesos no caben cómodos en la pila del loop
+  m.init();
+  taste::Sample s;
+  s.ey = 23.6f; s.tds = 1.61f; s.ratio = 17.0f; s.bloom = true;
+  float ab, st;
+  m.predict(s, &ab, &st);
+  check(ab > 0.8f && st > 0.8f, "Red: preentrenada, EY 23.6/TDS 1.61 -> amargo e intenso", "agrio/amargo %.2f", ab);
+  float ey, tv;
+  m.sweetSpot(false, 16.0f, 20.0f, 1.30f, &ey, &tv);
+  check(fabsf(ey - 20.0f) <= 1.0f && fabsf(tv - 1.30f) <= 0.1f, "Red: sin datos, punto dulce en la zona SCA", "EY %.2f", ey);
+
+  // Una persona a la que le gustan las extracciones altas
+  taste::Sample hist[6];
+  int nh = 0;
+  const float likedEy[4] = {22.5f, 22.8f, 22.2f, 22.6f};
+  for (int i = 0; i < 4; i++) {
+    taste::Sample l;
+    l.ey = likedEy[i]; l.tds = 1.42f; l.ratio = 16.5f; l.bloom = true;
+    l.acidBitter = 0; l.strength = 0;
+    m.learn(l, hist, nh);
+    hist[nh++] = l;
+  }
+  taste::Sample sour;
+  sour.ey = 20.0f; sour.tds = 1.30f; sour.ratio = 16.5f; sour.bloom = true; sour.acidBitter = -1;
+  m.learn(sour, hist, nh);
+  m.sweetSpot(false, 16.5f, 22.0f, 1.40f, &ey, &tv);   // media de los cafés valorados
+  check(ey >= 21.5f && m.weights().samplesSeen == 5, "Red: aprende que le gustan extracciones altas", "punto dulce EY %.2f", ey);
+  m.predict(sour, &ab, nullptr);
+  check(ab < -0.3f, "Red: ahora EY 20 le sabe agrio", "agrio/amargo %.2f", ab);
+}
+
 }  // namespace
 
 int runSelfTests(void (*print)(const char* line)) {
@@ -384,6 +417,7 @@ int runSelfTests(void (*print)(const char* line)) {
   testDifluid();
   testTdsSampler();
   testAdvisor();
+  testTasteModel();
   char line[80];
   snprintf(line, sizeof(line), "[TEST] Resultado: %d OK, %d FALLOS", g_pass, g_fail);
   g_print(line);
