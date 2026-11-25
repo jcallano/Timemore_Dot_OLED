@@ -182,9 +182,9 @@ void renderSettingsMenuOled() {
   float w = currentWeightGrams;
   if (fabsf(w) < 0.05f) w = 0.0f;
   if (clockIsSet()) {
-    char hm[8];
-    formatClockHM(hm, sizeof(hm));
-    snprintf(hdrBuf, sizeof(hdrBuf), "MENU %s  %5.1fG", hm, w);
+    char dt[20];
+    formatDateTime(nowEpochOrZero(), dt, sizeof(dt));   // "25/11 16:34"
+    snprintf(hdrBuf, sizeof(hdrBuf), "%s %6.1fG", dt, w);
   } else {
     snprintf(hdrBuf, sizeof(hdrBuf), TR("MENU  PESO:%5.1fG", "MENU  WEIGHT:%5.1fG"), w);
   }
