@@ -79,7 +79,7 @@ PARAMS = [
     ("oled_d0", "=oled_rec + mod_t", "Profundidad de la cara delantera del PCB (calculada)"),
     ("stop_w", "2.4", "Ancho de los topes donde apoya la cara del PCB"),
     ("hdr_front", "2.1", "Pines del header que asoman por delante del PCB (STEP 2.01)"),
-    ("ins25_d", "3.2", "Agujero inserto laton M2.5 (D ext 3.5)"),
+    ("ins25_d", "3.4", "Agujero inserto laton M2.5 (D ext 3.5; guia de 3.0 y el FDM encoge el agujero ~0.2)"),
     ("ins25_h", "3.5", "Profundidad agujero inserto M2.5 x 3 x D3.5 (tornillo M2.5x6)"),
     ("scr25_d", "2.8", "Paso tornillo M2.5 en el pisador"),
     ("boss_d", "7", "Diametro torretas de los pisadores"),
