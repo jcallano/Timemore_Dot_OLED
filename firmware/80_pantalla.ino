@@ -359,7 +359,8 @@ void renderProfileOled() {
   const taste::Weights& w = tasteModel.weights();
   char f[24];
   if (w.samplesSeen == 0) snprintf(f, sizeof(f), "RED NEURONAL: 0 CAFES");
-  else                    snprintf(f, sizeof(f), "%u CAFES ERROR %.1f", w.samplesSeen, 0.5f * (w.maeAb + w.maeSt));
+  else                    snprintf(f, sizeof(f), "%u CAFE%s ERROR %.1f", w.samplesSeen, w.samplesSeen == 1 ? "" : "S",
+                                   0.5f * (w.maeAb + w.maeSt));
   oledDrawText(0, 56, f, 1);
 }
 

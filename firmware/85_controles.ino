@@ -536,7 +536,7 @@ void handleSerialCommands() {
       // TDS simulado (1.61 %) para el registro de la pantalla TDS, y a "¿cómo sabe?"
       if (uiState != UiState::TdsMeasure) openTdsScreen();
       if (r2TargetId != 0) {
-        storeTdsResult(r2TargetIsShot, r2TargetId, tds::pack(1.61f, tds::FLAG_VALID));
+        storeTdsResult(r2TargetIsShot, r2TargetId, tds::pack(r2TargetIsShot ? 9.6f : 1.61f, tds::FLAG_VALID));
         beginTasteInput();
       }
       pourSavedBannerUntilMs = 0;
