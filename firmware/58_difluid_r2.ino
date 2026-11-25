@@ -243,7 +243,7 @@ static void r2HandleFrame(const uint8_t* raw, size_t n) {
   if (f.cmd == dfproto::ACT_CALIBRATE) {   // cero: el R2 responde estado 'calibración terminada' y concentración 0
     if (e.kind == dfproto::TestEvent::Temperature) { r2LivePrismC = e.prismC; r2LiveSampleC = e.sampleC; r2LiveHaveTemp = true; }
     if (e.kind == dfproto::TestEvent::Status && e.status == dfproto::ST_CAL_FINISHED) {
-      strncpy(r2StatusMsg, "CERO OK", sizeof(r2StatusMsg) - 1);
+      strncpy(r2StatusMsg, TR("CERO OK", "ZERO OK"), sizeof(r2StatusMsg) - 1);
       Serial.println("[R2] Cero hecho.");
       r2SetState(r2State == R2State::Measuring ? R2State::Measuring : R2State::Ready);
     }
@@ -260,11 +260,11 @@ static void r2HandleFrame(const uint8_t* raw, size_t n) {
       r2OnTestResult(e.tds);
       break;
     case dfproto::TestEvent::Error:
-      if (e.errClass == 2 && e.errCode == dfproto::ERR_CAL_FAILED)        r2Fail("CERO FALLIDO");
-      else if (e.errClass == 2 && e.errCode == dfproto::ERR_NO_LIQUID)    r2Fail("SIN MUESTRA");
-      else if (e.errClass == 2 && e.errCode == dfproto::ERR_BEYOND_RANGE) r2Fail("FUERA DE RANGO");
-      else if (e.errClass == 3)                                           r2Fail("ERROR DEL R2");
-      else                                                                r2Fail("PRUEBA FALLIDA");
+      if (e.errClass == 2 && e.errCode == dfproto::ERR_CAL_FAILED)        r2Fail(TR("CERO FALLIDO", "ZERO FAILED"));
+      else if (e.errClass == 2 && e.errCode == dfproto::ERR_NO_LIQUID)    r2Fail(TR("SIN MUESTRA", "NO SAMPLE"));
+      else if (e.errClass == 2 && e.errCode == dfproto::ERR_BEYOND_RANGE) r2Fail(TR("FUERA DE RANGO", "OUT OF RANGE"));
+      else if (e.errClass == 3)                                           r2Fail(TR("ERROR DEL R2", "R2 ERROR"));
+      else                                                                r2Fail(TR("PRUEBA FALLIDA", "TEST FAILED"));
       break;
     default:
       break;
@@ -297,7 +297,7 @@ void serviceR2() {
     pR2Char = nullptr;
     if (r2State == R2State::Ready || r2State == R2State::Measuring || r2State == R2State::Calibrating) {
       Serial.println("[R2] Desconectado.");
-      if (r2State == R2State::Measuring) r2Fail("R2 DESCONECTADO");
+      if (r2State == R2State::Measuring) r2Fail(TR("R2 DESCONECTADO", "R2 DISCONNECTED"));
       r2SetState(R2State::Off);
     }
   }
@@ -316,7 +316,7 @@ void serviceR2() {
         isScanning = false;
         if (pR2Client == nullptr) {
           pR2Client = NimBLEDevice::createClient();
-          if (pR2Client == nullptr) { r2Fail("SIN CONEXION LIBRE"); break; }
+          if (pR2Client == nullptr) { r2Fail(TR("SIN CONEXION LIBRE", "NO FREE CONNECTION")); break; }
           pR2Client->setClientCallbacks(&r2ClientCallbacks, false);
           pR2Client->setConnectionParams(24, 40, 0, 400);   // 30-50 ms: deja radio a la Dot (10-15 ms)
         }
@@ -326,7 +326,7 @@ void serviceR2() {
         pR2Client->setConnectTimeout(R2_CONNECT_MS);
         Serial.printf("[R2] Conectando a %s...\n", r2CandMac);
         if (!pR2Client->connect(NimBLEAddress(std::string(r2CandMac), r2CandType), true, true, false)) {
-          r2Fail("NO CONECTA");
+          r2Fail(TR("NO CONECTA", "CONNECT FAILED"));
           break;
         }
         r2SetState(R2State::Connecting);
@@ -335,7 +335,7 @@ void serviceR2() {
       if ((long)(millis() - r2StateSinceMs) > (long)R2_SCAN_MS) {
         if (r2ScanByUs && pScan->isScanning()) pScan->stop();
         r2ScanByUs = false;
-        r2Fail("R2 NO ENCONTRADO");
+        r2Fail(TR("R2 NO ENCONTRADO", "R2 NOT FOUND"));
         break;
       }
       // Sin la Dot conectada ya hay un escaneo periódico que también ve al R2; con ella, uno propio
@@ -359,7 +359,7 @@ void serviceR2() {
           pR2Client->connect(NimBLEAddress(std::string(r2CandMac), r2CandType ? 0 : 1), true, true, false);
           break;
         }
-        r2Fail("NO CONECTA");
+        r2Fail(TR("NO CONECTA", "CONNECT FAILED"));
         break;
       }
       if (r2EvLinkUp) {
@@ -369,7 +369,7 @@ void serviceR2() {
         if (pR2Char == nullptr || !pR2Char->canNotify() || !pR2Char->subscribe(true, r2NotifyCb)) {
           Serial.println("[R2] No tiene el servicio del DiFluid R2.");
           r2Disconnect();
-          r2Fail("NO ES UN R2");
+          r2Fail(TR("NO ES UN R2", "NOT AN R2"));
           break;
         }
         if (r2Queue != nullptr) xQueueReset(r2Queue);
@@ -393,12 +393,12 @@ void serviceR2() {
           Serial.println("[R2] Haciendo el cero...");
           r2SetState(R2State::Calibrating);
         } else {
-          r2Fail("ERROR AL ESCRIBIR");
+          r2Fail(TR("ERROR AL ESCRIBIR", "WRITE ERROR"));
         }
       }
       if (r2State == R2State::Calibrating) {
         r2LastUseMs = now;
-        if ((long)(millis() - r2StateSinceMs) > (long)R2_ZERO_TIMEOUT) r2Fail("CERO SIN RESPUESTA");
+        if ((long)(millis() - r2StateSinceMs) > (long)R2_ZERO_TIMEOUT) r2Fail(TR("CERO SIN RESPUESTA", "ZERO: NO RESPONSE"));
         break;
       }
       if (r2State == R2State::Measuring) {
@@ -408,10 +408,10 @@ void serviceR2() {
             r2TestInFlight = true;
             r2TestSentMs   = now;
           } else {
-            r2Fail("ERROR AL ESCRIBIR");
+            r2Fail(TR("ERROR AL ESCRIBIR", "WRITE ERROR"));
           }
         } else if (r2TestInFlight && (long)(now - r2TestSentMs) > (long)R2_TEST_TIMEOUT) {
-          r2Fail("EL R2 NO RESPONDE");
+          r2Fail(TR("EL R2 NO RESPONDE", "R2 NOT RESPONDING"));
         }
       } else if (uiState != UiState::TdsMeasure && (long)(now - r2LastUseMs) > (long)R2_IDLE_MS) {
         Serial.println("[R2] Sin uso: desconectando.");

@@ -31,6 +31,7 @@ struct Input {
   bool    hasBloom         = true;    // pour-over: hubo bloom
   float   ratio            = 0.0f;    // filtro: agua/dosis; espresso: bebida/dosis
   float   bestGrindThisBag = -1.0f;   // molienda del café que más gustó de esta bolsa (<0 = ninguno)
+  bool    english          = false;   // textos en inglés
 };
 
 struct Advice {

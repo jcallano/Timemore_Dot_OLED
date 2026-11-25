@@ -125,7 +125,7 @@ static void renderOtaScreenOled(const char* statusLine, int progressPct) {
   if (!oledPresent) return;
   oledClear();
   oledFillRect(0, 0, 128, 11, true);
-  oledDrawText(10, 2, "ACTUALIZAR POR BLE", 1, true);
+  oledDrawText(10, 2, TR("ACTUALIZAR POR BLE", "UPDATE OVER BLE"), 1, true);
   oledDrawText(2, 14, "BLE: TMDot-OTA", 1);
   oledDrawText(2, 29, "PIN", 1);
   oledDrawText(28, 24, otaPin, 2);
@@ -138,7 +138,7 @@ static void renderOtaScreenOled(const char* statusLine, int progressPct) {
     if (wBar > 0) oledFillRect(4, 54, wBar, 6, true);
   } else {
     oledDrawHLine(0, 52, 128, true);
-    oledDrawText(2, 55, "1 CLICK: CANCELAR", 1);
+    oledDrawText(2, 55, TR("1 CLICK: CANCELAR", "1 CLICK: CANCEL"), 1);
   }
   oledFlush();
 }
@@ -168,7 +168,7 @@ void enterBleOtaMode() {
   snprintf(otaPin, sizeof(otaPin), "%06lu", (unsigned long)(esp_random() % 1000000UL));
 
   setRgbColor(LED_BRIGHTNESS, 0, LED_BRIGHTNESS); // Magenta = modo actualización
-  renderOtaScreenOled("PREPARANDO...", -1);
+  renderOtaScreenOled(TR("PREPARANDO...", "PREPARING..."), -1);
   while (digitalRead(PIN_ENC_SW) == LOW || digitalRead(PIN_BOOT_BUTTON) == LOW) delay(10);
 
   // Pila BLE limpia: fuera la Dot y el puente; solo el servicio OTA
@@ -176,7 +176,7 @@ void enterBleOtaMode() {
   otaStream = xStreamBufferCreate(OTA_STREAM_BYTES, 1);
   static uint8_t stage[OTA_BLOCK_BYTES];
   if (otaStream == nullptr) {
-    renderOtaScreenOled("ERROR: SIN MEMORIA", -1);
+    renderOtaScreenOled(TR("ERROR: SIN MEMORIA", "ERROR: NO MEMORY"), -1);
     delay(3000);
     ESP.restart();
   }
@@ -206,7 +206,7 @@ void enterBleOtaMode() {
   pAdv->start();
 
   Serial.printf("[OTA-BLE] Anunciando '%s'. PIN: %s\n", OTA_DEV_NAME, otaPin);
-  renderOtaScreenOled("ESPERANDO CONEXION", -1);
+  renderOtaScreenOled(TR("ESPERANDO CONEXION", "WAITING CONNECTION"), -1);
 
   uint32_t written      = 0;
   size_t   stageLen     = 0;
@@ -240,10 +240,10 @@ void enterBleOtaMode() {
       wasConnected   = otaPeerConnected;
       lastActivityMs = now;
       if (wasConnected) {
-        renderOtaScreenOled("CONECTADO", -1);
+        renderOtaScreenOled(TR("CONECTADO", "CONNECTED"), -1);
       } else {
-        if (otaReceiving || updateOpen) abortUpdate("CONEXION PERDIDA", 0);
-        else renderOtaScreenOled("ESPERANDO CONEXION", -1);
+        if (otaReceiving || updateOpen) abortUpdate(TR("CONEXION PERDIDA", "CONNECTION LOST"), 0);
+        else renderOtaScreenOled(TR("ESPERANDO CONEXION", "WAITING CONNECTION"), -1);
       }
     }
 
@@ -265,13 +265,13 @@ void enterBleOtaMode() {
         if (memcmp(&cmd[5], otaPin, 6) != 0) {
           status = 1;
           pinFails++;
-          renderOtaScreenOled("PIN INCORRECTO", -1);
+          renderOtaScreenOled(TR("PIN INCORRECTO", "WRONG PIN"), -1);
         } else if (size < 0x24) {
           status = 2;
         } else if (!Update.begin(size)) {
           status = 3;
           Serial.printf("[OTA-BLE] Update.begin(%lu) fallo: %s\n", (unsigned long)size, Update.errorString());
-          renderOtaScreenOled("ERROR: NO CABE", -1);
+          renderOtaScreenOled(TR("ERROR: NO CABE", "ERROR: TOO LARGE"), -1);
         } else {
           updateOpen   = true;
           otaImageSize = size;
@@ -280,7 +280,7 @@ void enterBleOtaMode() {
           otaLastRxMs  = now;
           otaReceiving = true;
           Serial.printf("[OTA-BLE] Recibiendo %lu bytes (MTU %u).\n", (unsigned long)size, (unsigned)otaPeerMtu);
-          renderOtaScreenOled("RECIBIENDO...", 0);
+          renderOtaScreenOled(TR("RECIBIENDO...", "RECEIVING..."), 0);
         }
         uint16_t mtu = otaPeerMtu;
         uint8_t resp[5] = {0x81, status, (uint8_t)mtu, (uint8_t)(mtu >> 8), OTA_PROTO_VERSION};
@@ -302,14 +302,14 @@ void enterBleOtaMode() {
         otaNotify(resp, sizeof(resp));
         if (status == 0) {
           Serial.println("[OTA-BLE] Firmware verificado y escrito. Reiniciando...");
-          renderOtaScreenOled("OK! REINICIANDO...", 100);
+          renderOtaScreenOled(TR("OK! REINICIANDO...", "OK! RESTARTING..."), 100);
           delay(800);
           ESP.restart();
         }
-        renderOtaScreenOled("ERROR: IMAGEN MALA", -1);
+        renderOtaScreenOled(TR("ERROR: IMAGEN MALA", "ERROR: BAD IMAGE"), -1);
 
       } else if (cmd[0] == OTA_CMD_ABORT) {
-        abortUpdate("CANCELADO", 0);
+        abortUpdate(TR("CANCELADO", "CANCELLED"), 0);
         uint8_t resp[2] = {0x84, 0x00};
         otaNotify(resp, sizeof(resp));
       }
@@ -319,7 +319,7 @@ void enterBleOtaMode() {
     if (otaReceiving) {
       if (otaRxError != 0) {
         uint8_t code = otaRxError;
-        abortUpdate(code == 1 ? "ERROR: DESFASE" : (code == 3 ? "ERROR: DESBORDE" : "ERROR: DATOS"), code);
+        abortUpdate(code == 1 ? TR("ERROR: DESFASE", "ERROR: OFFSET") : (code == 3 ? TR("ERROR: DESBORDE", "ERROR: OVERFLOW") : TR("ERROR: DATOS", "ERROR: DATA")), code);
         continue;
       }
       size_t got = xStreamBufferReceive(otaStream, stage + stageLen, OTA_BLOCK_BYTES - stageLen, pdMS_TO_TICKS(5));
@@ -327,12 +327,12 @@ void enterBleOtaMode() {
       const bool lastBlock = (written + stageLen) == otaImageSize;
       if (stageLen == OTA_BLOCK_BYTES || (lastBlock && stageLen > 0)) {
         if (written == 0 && !otaLooksLikeAppImage(stage, stageLen)) {
-          abortUpdate("ERROR: NO ES FIRMWARE", 4);
+          abortUpdate(TR("ERROR: NO ES FIRMWARE", "ERROR: NOT FIRMWARE"), 4);
           continue;
         }
         if (Update.write(stage, stageLen) != stageLen) {
           Serial.printf("[OTA-BLE] Update.write fallo: %s\n", Update.errorString());
-          abortUpdate("ERROR AL ESCRIBIR", 2);
+          abortUpdate(TR("ERROR AL ESCRIBIR", "WRITE ERROR"), 2);
           continue;
         }
         written += stageLen;
@@ -344,11 +344,11 @@ void enterBleOtaMode() {
         if (pct >= lastPctShown + 3 || pct == 100) {
           lastPctShown = pct;
           char line[22];
-          snprintf(line, sizeof(line), "RECIBIENDO %3d%%", pct);
+          snprintf(line, sizeof(line), TR("RECIBIENDO %3d%%", "RECEIVING %3d%%"), pct);
           renderOtaScreenOled(line, pct);
         }
       } else if ((millis() - otaLastRxMs) > OTA_STALL_MS) {
-        abortUpdate("ERROR: SIN DATOS", 5);
+        abortUpdate(TR("ERROR: SIN DATOS", "ERROR: NO DATA"), 5);
       }
     } else {
       delay(5);
@@ -357,7 +357,7 @@ void enterBleOtaMode() {
 
   Serial.println("[OTA-BLE] Saliendo del modo de actualizacion. Reiniciando...");
   if (updateOpen) Update.abort();
-  renderOtaScreenOled("SALIENDO...", -1);
+  renderOtaScreenOled(TR("SALIENDO...", "EXITING..."), -1);
   delay(300);
   ESP.restart();
 }

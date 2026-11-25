@@ -70,6 +70,10 @@
 #include "src/brew_advisor.h"
 #include "src/taste_model.h"
 
+// Idioma de la pantalla (Menú -> Language). Los mensajes del monitor serie siguen en español.
+bool uiEnglish = true;
+#define TR(es, en) (uiEnglish ? (en) : (es))
+
 // ============================================================================
 // WRAPPER USB-SERIAL/JTAG (HWCDC) 100% NO BLOQUEANTE CUANDO EL MONITOR ESTÁ CERRADO
 // ============================================================================
@@ -422,9 +426,9 @@ BrewMode brewMode                        = BrewMode::PourOver;
 enum MenuItemId : uint8_t {
   MI_MODE, MI_HISTORY, MI_AUTOTIMER, MI_DOSE, MI_RATIO, MI_TARGET_TIME,
   MI_BRIGHT, MI_BRIDGE, MI_RELINK, MI_UPDATE, MI_SLEEP, MI_EXIT, MI_TDS, MI_JAR, MI_R2ZERO,
-  MI_GRIND, MI_BAG, MI_GRIND_DIR, MI_PROFILE
+  MI_GRIND, MI_BAG, MI_GRIND_DIR, MI_PROFILE, MI_LANG
 };
-static constexpr uint8_t MENU_MAX_ITEMS  = 17;
+static constexpr uint8_t MENU_MAX_ITEMS  = 18;
 int8_t menuSelectedIndex                 = 0;
 
 // Parámetros de barista configurables desde el Encoder

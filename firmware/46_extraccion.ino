@@ -305,6 +305,7 @@ bool buildAdvice(bool shot, uint16_t id, advisor::Advice& out) {
   in.strength       = st;
   in.grind          = recordGrind(shot, id);
   in.grindUpCoarser = grindUpCoarser;
+  in.english        = uiEnglish;
   in.bestGrindThisBag = bestGrindThisBag(shot);
   if (shot) {
     const int8_t k = shotIndexById(id);
@@ -444,15 +445,15 @@ uint8_t describeTaste(bool shot, char lines[][22]) {
   uint8_t n = 0;
   snprintf(lines[n++], 22, shot ? "EY %.1f%%  TDS %.1f%%" : "EY %.1f%%  TDS %.2f%%", ey, tv);
   if (w.samplesSeen == 0) {
-    snprintf(lines[n++], 22, "AUN NO TE CONOZCO:");
-    snprintf(lines[n++], 22, "PARTO DE LA ZONA SCA");
-    snprintf(lines[n++], 22, "VALORA TUS CAFES");
+    snprintf(lines[n++], 22, TR("AUN NO TE CONOZCO:", "NOT ENOUGH DATA YET:"));
+    snprintf(lines[n++], 22, TR("PARTO DE LA ZONA SCA", "STARTING AT SCA ZONE"));
+    snprintf(lines[n++], 22, TR("VALORA TUS CAFES", "RATE YOUR COFFEES"));
     return n;
   }
-  snprintf(lines[n++], 22, "EXTRACCION %s", ey < 19.0f ? "BAJA" : (ey > 21.0f ? "ALTA" : "MEDIA"));
+  snprintf(lines[n++], 22, TR("EXTRACCION %s", "EXTRACTION %s"), ey < 19.0f ? TR("BAJA", "LOW") : (ey > 21.0f ? TR("ALTA", "HIGH") : TR("MEDIA", "MEDIUM")));
   const float rel = shot ? (tv - 10.0f) / 1.5f : (tv - 1.30f) / 0.15f;
-  snprintf(lines[n++], 22, "CUERPO %s", rel < -0.5f ? "LIGERO" : (rel > 0.5f ? "INTENSO" : "MEDIO"));
+  snprintf(lines[n++], 22, TR("CUERPO %s", "BODY %s"), rel < -0.5f ? TR("LIGERO", "LIGHT") : (rel > 0.5f ? TR("INTENSO", "STRONG") : TR("MEDIO", "MEDIUM")));
   const float slope = tasteModel.bitterPerEy(shot, ey, tv, ratio);
-  snprintf(lines[n++], 22, "%s", slope > 0.7f ? "SENSIBLE AL AMARGOR" : (slope < 0.3f ? "TOLERAS EL AMARGOR" : "AMARGOR: NORMAL"));
+  snprintf(lines[n++], 22, "%s", slope > 0.7f ? TR("SENSIBLE AL AMARGOR", "BITTERNESS-SENSITIVE") : (slope < 0.3f ? TR("TOLERAS EL AMARGOR", "BITTERNESS-TOLERANT") : TR("AMARGOR: NORMAL", "BITTERNESS: NORMAL")));
   return n;
 }

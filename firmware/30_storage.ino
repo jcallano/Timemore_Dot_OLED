@@ -130,6 +130,7 @@ void initPsramAndLoadPours() {
   if (coffeeDoseGrams < DOSE_MIN_G || coffeeDoseGrams > DOSE_MAX_G) coffeeDoseGrams = 15.0f;
   nextPourSequenceId = pourPrefs.getUShort("next_id", 1);
   bookooBridgeEnabled = pourPrefs.getBool("bk_on", true);
+  uiEnglish           = pourPrefs.getBool("lang_en", true);
   savedPoursCount    = 0;
 
   // (lambda y no función: el generador de prototipos del IDE la declararía antes de PourOverRecord)
@@ -191,6 +192,13 @@ void initPsramAndLoadPours() {
     }
   }
   pourPrefs.end();
+}
+
+void saveLanguageToNVS() {
+  Preferences p;
+  p.begin(NVS_POUR_NAMESPACE, false);
+  p.putBool("lang_en", uiEnglish);
+  p.end();
 }
 
 void saveDoseToNVS() {

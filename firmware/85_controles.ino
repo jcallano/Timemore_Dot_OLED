@@ -240,6 +240,10 @@ void executeButtonMultiClickAction(uint8_t clicks) {
         case MI_JAR:           // jarra vacía sobre la báscula: su peso (sin nada, la borra)
           saveServerJar(rawWeightGrams > 20.0f ? static_cast<float>(rawWeightGrams) : 0.0f);
           break;
+        case MI_LANG:          // idioma de la pantalla
+          uiEnglish = !uiEnglish;
+          saveLanguageToNVS();
+          break;
         case MI_BRIGHT:
           oledBrightnessLevel = (oledBrightnessLevel + 1) % 3;
           oledSetContrast(getActiveOledContrast());
@@ -257,7 +261,7 @@ void executeButtonMultiClickAction(uint8_t clicks) {
           break;
         case MI_SLEEP:
           uiState = UiState::Main;
-          enterDeepSleepMode("APAGADO MANUAL");
+          enterDeepSleepMode(TR("APAGADO MANUAL", "POWER OFF"));
           break;
         case MI_EXIT:
         default:

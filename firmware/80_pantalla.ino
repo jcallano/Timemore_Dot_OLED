@@ -12,10 +12,10 @@ void renderPourOverViewerOled() {
   oledFillRect(0, 0, 128, 11, true);
 
   if (savedPoursCount == 0 || psramSavedPours == nullptr) {
-    oledDrawText(4, 2, "HISTORIAL POUR-OVER", 1, true);
-    oledDrawText(10, 24, "SIN POUR-OVERS", 1);
-    oledDrawText(10, 36, "GUARDADOS EN PSRAM", 1);
-    oledDrawText(10, 52, "CLICK: VOLVER", 1);
+    oledDrawText(4, 2, TR("HISTORIAL POUR-OVER", "POUR-OVER HISTORY"), 1, true);
+    oledDrawText(10, 24, TR("SIN POUR-OVERS", "NO POUR-OVERS"), 1);
+    oledDrawText(10, 36, TR("GUARDADOS EN PSRAM", "SAVED YET"), 1);
+    oledDrawText(10, 52, TR("CLICK: VOLVER", "CLICK: BACK"), 1);
     return;
   }
 
@@ -68,7 +68,7 @@ void renderPourOverViewerOled() {
     char foot[32];
     char pours[8];
     if (rec.hasBloom) snprintf(pours, sizeof(pours), "B+%u", (unsigned)(rec.poursCount - 1));
-    else              snprintf(pours, sizeof(pours), "%uV", (unsigned)rec.poursCount);
+    else              snprintf(pours, sizeof(pours), TR("%uV", "%uP"), (unsigned)rec.poursCount);
     snprintf(foot, sizeof(foot), "%.1fG %s %d/%u +INFO",
              rec.doseGrams, pours, selectedPourSlot + 1, savedPoursCount);
     oledDrawText(0, 56, foot, 1);
@@ -76,20 +76,20 @@ void renderPourOverViewerOled() {
   } else {
     // PÁGINA B: FICHA DETALLADA DEL POUR-OVER (Peso, Dosis, Ratio, Caudal Medio/Pico, Vertidos)
     char line1[32], line2[32], line3[32], line4[32];
-    snprintf(line1, sizeof(line1), "AGUA/BEBIDA: %5.1f G", rec.finalWeightGrams);
-    snprintf(line2, sizeof(line2), "DOSIS:%4.1fG -> 1:%4.1f", rec.doseGrams, rec.finalRatio);
-    snprintf(line3, sizeof(line3), "FLOW MED:%3.1f MAX:%3.1f", rec.avgFlowGps, rec.peakFlowGps);
+    snprintf(line1, sizeof(line1), TR("AGUA/BEBIDA: %5.1f G", "WATER: %5.1f G"), rec.finalWeightGrams);
+    snprintf(line2, sizeof(line2), TR("DOSIS:%4.1fG -> 1:%4.1f", "DOSE:%4.1fG -> 1:%4.1f"), rec.doseGrams, rec.finalRatio);
+    snprintf(line3, sizeof(line3), TR("FLOW MED:%3.1f MAX:%3.1f", "FLOW AVG:%3.1f MAX:%3.1f"), rec.avgFlowGps, rec.peakFlowGps);
     // <= 21 caracteres (128 px)
     float pTds = 0.0f;
     if (recordTds(false, rec.pourId, &pTds, nullptr)) {
       bool est = false;
       const float ey = recordEy(false, rec.pourId, &est);
-      if (rec.hasBloom) snprintf(line4, sizeof(line4), "B+%u TDS%.2f EY%s%.1f", (unsigned)(rec.poursCount - 1), pTds, est ? "*" : "", ey);
-      else              snprintf(line4, sizeof(line4), "%uV TDS%.2f EY%s%.1f", (unsigned)rec.poursCount, pTds, est ? "*" : "", ey);
+      if (rec.hasBloom) snprintf(line4, sizeof(line4), TR("B+%u TDS%.2f EY%s%.1f", "B+%u TDS%.2f EY%s%.1f"), (unsigned)(rec.poursCount - 1), pTds, est ? "*" : "", ey);
+      else              snprintf(line4, sizeof(line4), TR("%uV TDS%.2f EY%s%.1f", "%uP TDS%.2f EY%s%.1f"), (unsigned)rec.poursCount, pTds, est ? "*" : "", ey);
     } else if (rec.hasBloom) {
-      snprintf(line4, sizeof(line4), "BLOOM+%u 3CLK=SALIR", (unsigned)(rec.poursCount - 1));
+      snprintf(line4, sizeof(line4), TR("BLOOM+%u 3CLK=SALIR", "BLOOM+%u 3CLK=EXIT"), (unsigned)(rec.poursCount - 1));
     } else {
-      snprintf(line4, sizeof(line4), "VERTIDOS:%u 3CLK=SALIR", (unsigned)rec.poursCount);
+      snprintf(line4, sizeof(line4), TR("VERTIDOS:%u 3CLK=SALIR", "POURS:%u 3CLK=EXIT"), (unsigned)rec.poursCount);
     }
 
     oledDrawText(2, 15, line1, 1);
@@ -130,6 +130,7 @@ uint8_t buildMenuItems(uint8_t* ids) {
   ids[n++] = MI_HISTORY;
   ids[n++] = MI_MODE;
   ids[n++] = MI_BRIGHT;
+  ids[n++] = MI_LANG;
   ids[n++] = MI_BRIDGE;
   ids[n++] = MI_RELINK;
   ids[n++] = MI_UPDATE;
@@ -143,33 +144,34 @@ static void menuItemLabel(uint8_t id, uint8_t num, bool editing, char* out, size
   const bool esp = (brewMode == BrewMode::Espresso);
   const char* mark = editing ? " <" : "";
   switch (id) {
-    case MI_MODE:        snprintf(out, cap, "%u.MODO: %s", num, esp ? "ESPRESSO" : "POUR-OVER"); break;
+    case MI_MODE:        snprintf(out, cap, TR("%u.MODO: %s", "%u.MODE: %s"), num, esp ? "ESPRESSO" : "POUR-OVER"); break;
     case MI_HISTORY:
       if (esp) snprintf(out, cap, "%u.SHOTS (%u/%u)", num, savedShotsCount, MAX_SAVED_SHOTS);
       else     snprintf(out, cap, "%u.POUR-OVERS (%u/%u)", num, savedPoursCount, MAX_SAVED_POURS);
       break;
     case MI_AUTOTIMER:   snprintf(out, cap, "%u.AUTO-TMR: %s", num, autoTimerEnabled ? "ON" : "OFF"); break;
-    case MI_DOSE:        snprintf(out, cap, "%u.DOSIS: %.1fG%s", num, esp ? espDoseGrams : coffeeDoseGrams, mark); break;
+    case MI_DOSE:        snprintf(out, cap, TR("%u.DOSIS: %.1fG%s", "%u.DOSE: %.1fG%s"), num, esp ? espDoseGrams : coffeeDoseGrams, mark); break;
     case MI_RATIO:       snprintf(out, cap, "%u.RATIO 1:%.1f=%.1fG%s", num, espRatio, espressoTargetGrams(), editing ? "<" : ""); break;
-    case MI_TARGET_TIME: snprintf(out, cap, "%u.TIEMPO: %u S%s", num, espTargetSec, mark); break;
+    case MI_TARGET_TIME: snprintf(out, cap, TR("%u.TIEMPO: %u S%s", "%u.TIME: %u S%s"), num, espTargetSec, mark); break;
     case MI_BRIGHT:
-      snprintf(out, cap, "%u.BRILLO: %s", num, oledBrightnessLevel == 2 ? "ALTO" : (oledBrightnessLevel == 1 ? "MED" : "BAJO"));
+      snprintf(out, cap, TR("%u.BRILLO: %s", "%u.BRIGHTNESS: %s"), num, oledBrightnessLevel == 2 ? TR("ALTO", "HIGH") : (oledBrightnessLevel == 1 ? "MED" : TR("BAJO", "LOW")));
       break;
-    case MI_BRIDGE:      snprintf(out, cap, "%u.PUENTE BOOKOO: %s", num, bookooBridgeEnabled ? "ON" : "OFF"); break;
-    case MI_RELINK:      snprintf(out, cap, "%u.RE-VINCULAR DOT", num); break;
+    case MI_BRIDGE:      snprintf(out, cap, TR("%u.PUENTE BOOKOO: %s", "%u.BOOKOO BRIDGE: %s"), num, bookooBridgeEnabled ? "ON" : "OFF"); break;
+    case MI_RELINK:      snprintf(out, cap, TR("%u.RE-VINCULAR DOT", "%u.RE-PAIR DOT"), num); break;
     case MI_TDS:         snprintf(out, cap, "%u.TDS (R2)%s", num, r2Connected() ? " ON" : ""); break;
-    case MI_PROFILE:     snprintf(out, cap, "%u.TU GUSTO (IA)", num); break;
-    case MI_GRIND:       snprintf(out, cap, "%u.MOLINO: %.1f%s", num, grindForMode(), mark); break;
-    case MI_BAG:         snprintf(out, cap, "%u.BOLSA NUEVA (#%u)", num, currentBagId); break;
-    case MI_GRIND_DIR:   snprintf(out, cap, "%u.MOLINO+: %s", num, grindUpCoarser ? "GRUESO" : "FINO"); break;
-    case MI_R2ZERO:      snprintf(out, cap, "%u.CERO R2 (DESTIL.)", num); break;
+    case MI_LANG:        snprintf(out, cap, uiEnglish ? "%u.LANGUAGE: ENGLISH" : "%u.IDIOMA: ESPANOL", num); break;
+    case MI_PROFILE:     snprintf(out, cap, TR("%u.TU GUSTO (IA)", "%u.YOUR TASTE (AI)"), num); break;
+    case MI_GRIND:       snprintf(out, cap, TR("%u.MOLINO: %.1f%s", "%u.GRINDER: %.1f%s"), num, grindForMode(), mark); break;
+    case MI_BAG:         snprintf(out, cap, TR("%u.BOLSA NUEVA (#%u)", "%u.NEW BAG (#%u)"), num, currentBagId); break;
+    case MI_GRIND_DIR:   snprintf(out, cap, TR("%u.MOLINO+: %s", "%u.GRINDER+: %s"), num, grindUpCoarser ? TR("GRUESO", "COARSER") : TR("FINO", "FINER")); break;
+    case MI_R2ZERO:      snprintf(out, cap, TR("%u.CERO R2 (DESTIL.)", "%u.R2 ZERO (DISTIL.)"), num); break;
     case MI_JAR:
-      if (serverJarGrams > 0.0f) snprintf(out, cap, "%u.JARRA: %.0fG", num, serverJarGrams);
-      else                       snprintf(out, cap, "%u.JARRA: PESAR", num);
+      if (serverJarGrams > 0.0f) snprintf(out, cap, TR("%u.JARRA: %.0fG", "%u.SERVER: %.0fG"), num, serverJarGrams);
+      else                       snprintf(out, cap, TR("%u.JARRA: PESAR", "%u.SERVER: WEIGH"), num);
       break;
-    case MI_UPDATE:      snprintf(out, cap, "%u.ACTUALIZAR (BLE)", num); break;
-    case MI_SLEEP:       snprintf(out, cap, "%u.APAGAR (SLEEP)", num); break;
-    default:             snprintf(out, cap, "%u.SALIR A PANTALLA", num); break;
+    case MI_UPDATE:      snprintf(out, cap, TR("%u.ACTUALIZAR (BLE)", "%u.UPDATE (BLE)"), num); break;
+    case MI_SLEEP:       snprintf(out, cap, TR("%u.APAGAR (SLEEP)", "%u.POWER OFF (SLEEP)"), num); break;
+    default:             snprintf(out, cap, TR("%u.SALIR A PANTALLA", "%u.EXIT MENU"), num); break;
   }
 }
 
@@ -179,7 +181,7 @@ void renderSettingsMenuOled() {
   char hdrBuf[22];
   float w = currentWeightGrams;
   if (fabsf(w) < 0.05f) w = 0.0f;
-  snprintf(hdrBuf, sizeof(hdrBuf), "MENU  PESO:%5.1fG", w);
+  snprintf(hdrBuf, sizeof(hdrBuf), TR("MENU  PESO:%5.1fG", "MENU  WEIGHT:%5.1fG"), w);
   oledDrawText(4, 2, hdrBuf, 1, true);
 
   uint8_t ids[MENU_MAX_ITEMS];
@@ -222,7 +224,7 @@ void renderEspressoViewOled(const char* timeBuf) {
     snprintf(rb, sizeof(rb), "%.1f>%.1fG %uS", espDoseGrams, espressoTargetGrams(), espTargetSec);
     oledDrawText(128 - 6 * static_cast<int>(strlen(rb)), 1, rb, 1);
   } else {
-    oledDrawText(0, 1, "BUSCANDO DOT...", 1);
+    oledDrawText(0, 1, TR("BUSCANDO DOT...", "SEARCHING DOT..."), 1);
   }
   oledDrawHLine(0, 10, 128, true);
 
@@ -265,9 +267,9 @@ void renderEspressoViewOled(const char* timeBuf) {
   oledDrawText(0, 57, l, 1);
 
   const char* st;
-  if (shotPhase == ShotPhase::Running)       st = inCutZone ? "CORTA!" : (w >= cut - 3.0f ? "CASI" : "SHOT");
-  else if (shotPhase == ShotPhase::Settling) st = "GOTEO";
-  else if (espressoArmed())                  st = "LISTO";
+  if (shotPhase == ShotPhase::Running)       st = inCutZone ? TR("CORTA!", "STOP!") : (w >= cut - 3.0f ? TR("CASI", "ALMOST") : "SHOT");
+  else if (shotPhase == ShotPhase::Settling) st = TR("GOTEO", "DRIP");
+  else if (espressoArmed())                  st = TR("LISTO", "READY");
   else                                       st = "ESPRESSO";
   oledDrawText(74, 48, st, 1);
   oledDrawText(74, 57, timeBuf, 1);
@@ -277,10 +279,10 @@ void renderEspressoViewOled(const char* timeBuf) {
 void renderShotViewerOled() {
   oledFillRect(0, 0, 128, 11, true);
   if (savedShotsCount == 0) {
-    oledDrawText(4, 2, "HISTORIAL DE SHOTS", 1, true);
-    oledDrawText(10, 24, "SIN SHOTS", 1);
-    oledDrawText(10, 36, "GUARDADOS", 1);
-    oledDrawText(10, 52, "CLICK: VOLVER", 1);
+    oledDrawText(4, 2, TR("HISTORIAL DE SHOTS", "SHOT HISTORY"), 1, true);
+    oledDrawText(10, 24, TR("SIN SHOTS", "NO SHOTS"), 1);
+    oledDrawText(10, 36, TR("GUARDADOS", "SAVED YET"), 1);
+    oledDrawText(10, 52, TR("CLICK: VOLVER", "CLICK: BACK"), 1);
     return;
   }
   if (selectedShotSlot < 0) selectedShotSlot = 0;
@@ -328,17 +330,17 @@ void renderShotViewerOled() {
     oledDrawText(0, 56, foot, 1);
   } else {
     char l1[32], l2[32], l3[32], l4[32];
-    snprintf(l1, sizeof(l1), "BEBIDA:%.1fG OBJ:%.0f", r.yieldGrams, r.targetGrams);
-    snprintf(l2, sizeof(l2), "DOSIS:%.1fG -> 1:%.2f", r.doseGrams, ratio);
-    if (piKnown) snprintf(l3, sizeof(l3), "TIEMPO:%.1fS PI:%.1fS", r.timeDs / 10.0f, r.piDs / 10.0f);
-    else         snprintf(l3, sizeof(l3), "TIEMPO:%.1fS PI:--", r.timeDs / 10.0f);
+    snprintf(l1, sizeof(l1), TR("BEBIDA:%.1fG OBJ:%.0f", "YIELD:%.1fG TGT:%.0f"), r.yieldGrams, r.targetGrams);
+    snprintf(l2, sizeof(l2), TR("DOSIS:%.1fG -> 1:%.2f", "DOSE:%.1fG -> 1:%.2f"), r.doseGrams, ratio);
+    if (piKnown) snprintf(l3, sizeof(l3), TR("TIEMPO:%.1fS PI:%.1fS", "TIME:%.1fS PI:%.1fS"), r.timeDs / 10.0f, r.piDs / 10.0f);
+    else         snprintf(l3, sizeof(l3), TR("TIEMPO:%.1fS PI:--", "TIME:%.1fS PI:--"), r.timeDs / 10.0f);
     const float reb = r.yieldGrams - r.weightAtStop;
     float sTds = 0.0f;
     if (recordTds(true, r.shotId, &sTds, nullptr))
       snprintf(l4, sizeof(l4), "TDS %.2f%% EY %.1f%%", sTds, recordEy(true, r.shotId, nullptr));
-    else if (r.flags & SHOT_FLAG_AUTOSTOP)     snprintf(l4, sizeof(l4), "FIN AUTOMATICO");
-    else if (r.flags & SHOT_FLAG_MACHINE) snprintf(l4, sizeof(l4), "CORTE:CAFETERA %+.1fG", reb);
-    else                                  snprintf(l4, sizeof(l4), "CORTE:MANUAL %+.1fG", reb);
+    else if (r.flags & SHOT_FLAG_AUTOSTOP)     snprintf(l4, sizeof(l4), TR("FIN AUTOMATICO", "AUTO STOP"));
+    else if (r.flags & SHOT_FLAG_MACHINE) snprintf(l4, sizeof(l4), TR("CORTE:CAFETERA %+.1fG", "STOP:MACHINE %+.1fG"), reb);
+    else                                  snprintf(l4, sizeof(l4), TR("CORTE:MANUAL %+.1fG", "STOP:MANUAL %+.1fG"), reb);
     oledDrawText(2, 15, l1, 1);
     oledDrawText(2, 27, l2, 1);
     oledDrawText(2, 39, l3, 1);
@@ -351,15 +353,15 @@ void renderShotViewerOled() {
 bool profileShowsShot = false;
 void renderProfileOled() {
   oledFillRect(0, 0, 128, 11, true);
-  oledDrawText(2, 2, profileShowsShot ? "TU GUSTO: ESPRESSO" : "TU GUSTO: FILTRADO", 1, true);
+  oledDrawText(2, 2, profileShowsShot ? TR("TU GUSTO: ESPRESSO", "YOUR TASTE: ESPRESSO") : TR("TU GUSTO: FILTRADO", "YOUR TASTE: FILTER"), 1, true);
   char lines[5][22];
   const uint8_t n = describeTaste(profileShowsShot, lines);
   for (uint8_t i = 0; i < n && i < 4; i++) oledDrawText(0, 14 + i * 10, lines[i], 1);
   oledDrawHLine(0, 54, 128, true);
   const taste::Weights& w = tasteModel.weights();
   char f[24];
-  if (w.samplesSeen == 0) snprintf(f, sizeof(f), "RED NEURONAL: 0 CAFES");
-  else                    snprintf(f, sizeof(f), "%u CAFE%s ERROR %.1f", w.samplesSeen, w.samplesSeen == 1 ? "" : "S",
+  if (w.samplesSeen == 0) snprintf(f, sizeof(f), TR("RED NEURONAL: 0 CAFES", "NEURAL NET: 0 COFFEES"));
+  else                    snprintf(f, sizeof(f), TR("%u CAFE%s ERROR %.1f", "%u COFFEE%s ERROR %.1f"), w.samplesSeen, w.samplesSeen == 1 ? "" : "S",
                                    0.5f * (w.maeAb + w.maeSt));
   oledDrawText(0, 56, f, 1);
 }
@@ -370,13 +372,13 @@ void renderProfileOled() {
 // "¿Cómo sabe?": primero probar. Dos preguntas, girar para elegir y 1 clic para seguir.
 void renderTasteOled() {
   oledFillRect(0, 0, 128, 11, true);
-  oledDrawText(2, 2, tasteStep == 0 ? "1/2 PRUEBA EL CAFE" : "2/2 PRUEBA EL CAFE", 1, true);
+  oledDrawText(2, 2, tasteStep == 0 ? TR("1/2 PRUEBA EL CAFE", "1/2 TASTE THE COFFEE") : TR("2/2 PRUEBA EL CAFE", "2/2 TASTE THE COFFEE"), 1, true);
   const bool ab = (tasteStep == 0);
-  oledDrawText(0, 15, ab ? "COMO SABE?" : "Y DE CUERPO?", 1);
+  oledDrawText(0, 15, ab ? TR("COMO SABE?", "HOW DOES IT TASTE?") : TR("Y DE CUERPO?", "AND THE BODY?"), 1);
   const int8_t v = ab ? tasteAB : tasteST;
   // Escala de 5 posiciones con extremos rotulados
-  oledDrawText(0, 28, ab ? "AGRIO" : "AGUADO", 1);
-  const char* right = ab ? "AMARGO" : "INTENSO";
+  oledDrawText(0, 28, ab ? TR("AGRIO", "SOUR") : TR("AGUADO", "WEAK"), 1);
+  const char* right = ab ? TR("AMARGO", "BITTER") : TR("INTENSO", "STRONG");
   oledDrawText(128 - 6 * static_cast<int>(strlen(right)), 28, right, 1);
   oledDrawHLine(10, 42, 108, true);
   for (int k = 0; k < 5; k++) {
@@ -385,11 +387,11 @@ void renderTasteOled() {
   }
   const int mx = 10 + (v + 2) * 27;
   oledFillRect(mx - 3, 38, 7, 9, true);
-  static const char* abTxt[5] = {"MUY AGRIO", "ALGO AGRIO", "EQUILIBRADO", "ALGO AMARGO", "MUY AMARGO/SECO"};
-  static const char* stTxt[5] = {"MUY AGUADO", "ALGO AGUADO", "BIEN DE CUERPO", "ALGO INTENSO", "MUY INTENSO"};
+  const char* abTxt[5] = {TR("MUY AGRIO", "VERY SOUR"), TR("ALGO AGRIO", "A BIT SOUR"), TR("EQUILIBRADO", "BALANCED"), TR("ALGO AMARGO", "A BIT BITTER"), TR("MUY AMARGO/SECO", "VERY BITTER/DRY")};
+  const char* stTxt[5] = {TR("MUY AGUADO", "VERY WEAK"), TR("ALGO AGUADO", "A BIT WEAK"), TR("BIEN DE CUERPO", "GOOD BODY"), TR("ALGO INTENSO", "A BIT STRONG"), TR("MUY INTENSO", "VERY STRONG")};
   const char* t = ab ? abTxt[v + 2] : stTxt[v + 2];
   oledDrawText((128 - 6 * static_cast<int>(strlen(t))) / 2, 49, t, 1);
-  oledDrawText(0, 57, "GIRA Y 1C:OK", 1);
+  oledDrawText(0, 57, TR("GIRA Y 1C:OK", "TURN + 1C:OK"), 1);
 }
 
 // Gráfico de control: EY en horizontal, TDS en vertical, la zona del punto dulce y los cafés de la bolsa
@@ -397,7 +399,7 @@ void renderChartOled() {
   const bool shot = r2TargetIsShot;
   float v = 0.0f;
   if (!recordTds(shot, r2TargetId, &v, nullptr)) {
-    oledDrawText(4, 24, "SIN TDS MEDIDO", 1);
+    oledDrawText(4, 24, TR("SIN TDS MEDIDO", "NO TDS MEASURED"), 1);
     return;
   }
   bool est = false;
@@ -408,20 +410,20 @@ void renderChartOled() {
   if (chartShowAdvice) {
     oledFillRect(0, 0, 128, 11, true);
     char h[24];
-    snprintf(h, sizeof(h), "%s #%u: SUGERENCIA", shot ? "SHOT" : "POUR", r2TargetId);
+    snprintf(h, sizeof(h), TR("%s #%u: SUGERENCIA", "%s #%u: ADVICE"), shot ? "SHOT" : "POUR", r2TargetId);
     oledDrawText(2, 2, h, 1, true);
     if (!tasted) {
-      oledDrawText(0, 16, "PRIMERO PRUEBALO:", 1);
-      oledDrawText(0, 26, "TU GUSTO MANDA SOBRE", 1);
-      oledDrawText(0, 36, "LOS NUMEROS.", 1);
-      oledDrawText(0, 56, "1C:VALORAR", 1);
+      oledDrawText(0, 16, TR("PRIMERO PRUEBALO:", "TASTE IT FIRST:"), 1);
+      oledDrawText(0, 26, TR("TU GUSTO MANDA SOBRE", "YOUR TASTE RULES"), 1);
+      oledDrawText(0, 36, TR("LOS NUMEROS.", "OVER THE NUMBERS."), 1);
+      oledDrawText(0, 56, TR("1C:VALORAR", "1C:RATE"), 1);
       return;
     }
     advisor::Advice a;
     buildAdvice(shot, r2TargetId, a);
     for (uint8_t i = 0; i < a.nLines; i++) oledDrawText(0, 14 + i * 10, a.lines[i], 1);
     oledDrawHLine(0, 54, 128, true);
-    oledDrawText(0, 56, "SEGUN TU GUSTO  1C:OK", 1);
+    oledDrawText(0, 56, TR("SEGUN TU GUSTO  1C:OK", "BY YOUR TASTE  1C:OK"), 1);
     return;
   }
 
@@ -464,7 +466,7 @@ void renderChartOled() {
   snprintf(l, sizeof(l), shot ? "%.1f%%" : "%.2f%%", v);
   oledDrawText(W + 4, 30, l, 1);
   if (tasted) {
-    static const char* abS[5] = {"AGRIO", "AGRIO", "EQUIL", "AMARG", "AMARG"};
+    const char* abS[5] = {TR("AGRIO", "SOUR"), TR("AGRIO", "SOUR"), TR("EQUIL", "BAL."), TR("AMARG", "BITTR"), TR("AMARG", "BITTR")};
     oledDrawText(W + 4, 42, abS[ab + 2], 1);
     if (ab != 0) { snprintf(l, sizeof(l), "%+d", ab); oledDrawText(W + 34, 42, l, 1); }
   }
@@ -485,9 +487,9 @@ void renderTdsMeasureOled() {
   char l[28];
   if (r2TargetId == 0) {
     oledDrawText(2, 2, "TDS (DIFLUID R2)", 1, true);
-    oledDrawText(4, 24, "SIN REGISTROS", 1);
-    oledDrawText(4, 36, "PREPARA UN CAFE", 1);
-    oledDrawText(4, 55, "2C:SALIR", 1);
+    oledDrawText(4, 24, TR("SIN REGISTROS", "NO RECORDS"), 1);
+    oledDrawText(4, 36, TR("PREPARA UN CAFE", "BREW A COFFEE FIRST"), 1);
+    oledDrawText(4, 55, TR("2C:SALIR", "2C:EXIT"), 1);
     return;
   }
   if (r2TargetIsShot) {
@@ -528,34 +530,34 @@ void renderTdsMeasureOled() {
 
   // Estado
   switch (r2State) {
-    case R2State::Off:        snprintf(l, sizeof(l), "R2 DESCONECTADO"); break;
-    case R2State::Scanning:   snprintf(l, sizeof(l), "BUSCANDO EL R2..."); break;
-    case R2State::Connecting: snprintf(l, sizeof(l), "CONECTANDO..."); break;
+    case R2State::Off:        snprintf(l, sizeof(l), TR("R2 DESCONECTADO", "R2 DISCONNECTED")); break;
+    case R2State::Scanning:   snprintf(l, sizeof(l), TR("BUSCANDO EL R2...", "SEARCHING FOR R2...")); break;
+    case R2State::Connecting: snprintf(l, sizeof(l), TR("CONECTANDO...", "CONNECTING...")); break;
     case R2State::Failed:     snprintf(l, sizeof(l), "%s", r2StatusMsg); break;
-    case R2State::Calibrating: snprintf(l, sizeof(l), "HACIENDO EL CERO..."); break;
+    case R2State::Calibrating: snprintf(l, sizeof(l), TR("HACIENDO EL CERO...", "ZEROING...")); break;
     case R2State::Measuring:
-      if (r2Sampler.phase() == tds::Phase::Temperature) snprintf(l, sizeof(l), "TEMPERATURA %u/%u", r2Sampler.count(), tds::MAX_TESTS);
-      else                                              snprintf(l, sizeof(l), "ESTABILIZA %u/%u", r2Sampler.count(), tds::MAX_TESTS);
+      if (r2Sampler.phase() == tds::Phase::Temperature) snprintf(l, sizeof(l), TR("TEMPERATURA %u/%u", "TEMPERATURE %u/%u"), r2Sampler.count(), tds::MAX_TESTS);
+      else                                              snprintf(l, sizeof(l), TR("ESTABILIZA %u/%u", "STABILIZING %u/%u"), r2Sampler.count(), tds::MAX_TESTS);
       break;
     case R2State::Ready:
     default:
       if (r2StatusMsg[0] != '\0')         snprintf(l, sizeof(l), "%s", r2StatusMsg);
-      else if (saved && (tf & tds::FLAG_EVAP))     snprintf(l, sizeof(l), "EVAPORACION: TAPA");
-      else if (saved && (tf & tds::FLAG_TEMP))     snprintf(l, sizeof(l), "DUDOSA: TEMPERATURA");
-      else if (saved && (tf & tds::FLAG_DOUBTFUL)) snprintf(l, sizeof(l), "DUDOSA: NO ESTABLE");
-      else if (saved)                              snprintf(l, sizeof(l), "R2 LISTO (GUARDADA)");
-      else                                         snprintf(l, sizeof(l), "R2 LISTO");
+      else if (saved && (tf & tds::FLAG_EVAP))     snprintf(l, sizeof(l), TR("EVAPORACION: TAPA", "EVAPORATION: COVER"));
+      else if (saved && (tf & tds::FLAG_TEMP))     snprintf(l, sizeof(l), TR("DUDOSA: TEMPERATURA", "DOUBTFUL: TEMP"));
+      else if (saved && (tf & tds::FLAG_DOUBTFUL)) snprintf(l, sizeof(l), TR("DUDOSA: NO ESTABLE", "DOUBTFUL: UNSTABLE"));
+      else if (saved)                              snprintf(l, sizeof(l), TR("R2 LISTO (GUARDADA)", "R2 READY (SAVED)"));
+      else                                         snprintf(l, sizeof(l), TR("R2 LISTO", "R2 READY"));
       break;
   }
   oledDrawText(0, 34, l, 1);
   if (r2LiveHaveTemp && (measuring || r2State == R2State::Ready)) {
-    snprintf(l, sizeof(l), "P %.1fC  M %.1fC", r2LivePrismC, r2LiveSampleC);
+    snprintf(l, sizeof(l), TR("P %.1fC  M %.1fC", "P %.1fC  S %.1fC"), r2LivePrismC, r2LiveSampleC);
     oledDrawText(0, 44, l, 1);
   }
   oledDrawHLine(0, 53, 128, true);
-  if (measuring)                  oledDrawText(0, 56, "1C:CANCELAR", 1);
-  else if (r2State == R2State::Ready) oledDrawText(0, 56, "1C:MEDIR   GIRA:REG", 1);
-  else if (r2State == R2State::Off || r2State == R2State::Failed) oledDrawText(0, 56, "1C:CONECTAR 2C:SALIR", 1);
+  if (measuring)                  oledDrawText(0, 56, TR("1C:CANCELAR", "1C:CANCEL"), 1);
+  else if (r2State == R2State::Ready) oledDrawText(0, 56, TR("1C:MEDIR   GIRA:REG", "1C:MEASURE TURN:REC"), 1);
+  else if (r2State == R2State::Off || r2State == R2State::Failed) oledDrawText(0, 56, TR("1C:CONECTAR 2C:SALIR", "1C:CONNECT 2C:EXIT"), 1);
 }
 
 // Icono de 13x7 px de la batería del propio display (18650 vía divisor en GPIO 4).
@@ -622,9 +624,9 @@ void renderBookooBridgeOled() {
   }
   char m[12], d[12];
   if (bookooSubscribed) formatBookooLink(m, sizeof(m), 'M', bookooMachineItvlMs, bookooMachineRssi);
-  else snprintf(m, sizeof(m), "M:SIN SUB");
+  else snprintf(m, sizeof(m), TR("M:SIN SUB", "M:NO SUB"));
   if (scaleConnected) formatBookooLink(d, sizeof(d), 'D', dotItvl, bookooDotRssi);
-  else snprintf(d, sizeof(d), "D:BUSCANDO");
+  else snprintf(d, sizeof(d), TR("D:BUSCANDO", "D:SEARCHING"));
   oledFillRect(0, 0, 128, 9, true);
   oledDrawText(1, 1, m, 1, true);
   oledDrawText(127 - 6 * static_cast<int>(strlen(d)), 1, d, 1, true);
@@ -665,7 +667,7 @@ void renderBookooBridgeOled() {
 
   // 4. Últimos comandos de la máquina (el más reciente arriba) con su antigüedad
   if (bookooCmdLogCount == 0) {
-    oledDrawText(0, 48, bookooSubscribed ? "ESPERANDO COMANDOS" : "SIN SUSCRIPCION", 1);
+    oledDrawText(0, 48, bookooSubscribed ? TR("ESPERANDO COMANDOS", "WAITING COMMANDS") : TR("SIN SUSCRIPCION", "NOT SUBSCRIBED"), 1);
     return;
   }
   for (uint8_t i = 0; i < bookooCmdLogCount; i++) {
@@ -709,28 +711,28 @@ void renderOledScreen() {
     oledFillRect(2, 2, 124, 14, true);
     char bHdr[22];
     if (bannerIsShot) {
-      snprintf(bHdr, sizeof(bHdr), "SHOT #%u GUARDADO!", lastSavedShotId);
+      snprintf(bHdr, sizeof(bHdr), TR("SHOT #%u GUARDADO!", "SHOT #%u SAVED!"), lastSavedShotId);
       oledDrawText(12, 5, bHdr, 1, true);
       if (savedShotsCount > 0) {
         const ShotRecord& r = savedShots[savedShotsCount - 1];
         char l1[24], l2[24];
-        snprintf(l1, sizeof(l1), "BEBIDA:%.1fG 1:%.2f", r.yieldGrams, r.doseGrams > 0.1f ? r.yieldGrams / r.doseGrams : 0.0f);
-        if (r.flags & SHOT_FLAG_PI_KNOWN) snprintf(l2, sizeof(l2), "TIEMPO:%.1fS PI:%.1fS", r.timeDs / 10.0f, r.piDs / 10.0f);
-        else                              snprintf(l2, sizeof(l2), "TIEMPO:%.1fS", r.timeDs / 10.0f);
+        snprintf(l1, sizeof(l1), TR("BEBIDA:%.1fG 1:%.2f", "YIELD:%.1fG 1:%.2f"), r.yieldGrams, r.doseGrams > 0.1f ? r.yieldGrams / r.doseGrams : 0.0f);
+        if (r.flags & SHOT_FLAG_PI_KNOWN) snprintf(l2, sizeof(l2), TR("TIEMPO:%.1fS PI:%.1fS", "TIME:%.1fS PI:%.1fS"), r.timeDs / 10.0f, r.piDs / 10.0f);
+        else                              snprintf(l2, sizeof(l2), TR("TIEMPO:%.1fS", "TIME:%.1fS"), r.timeDs / 10.0f);
         oledDrawText(4, 24, l1, 1);
         oledDrawText(4, 40, l2, 1);
       }
       oledFlush();
       return;
     }
-    snprintf(bHdr, sizeof(bHdr), "POUR #%u GUARDADO!", lastSavedPourId);
+    snprintf(bHdr, sizeof(bHdr), TR("POUR #%u GUARDADO!", "POUR #%u SAVED!"), lastSavedPourId);
     oledDrawText(12, 5, bHdr, 1, true);
 
     if (savedPoursCount > 0 && psramSavedPours != nullptr) {
       const PourOverRecord& rec = psramSavedPours[savedPoursCount - 1];
       char l1[22], l2[22];
-      snprintf(l1, sizeof(l1), "PESO:%5.1fG (1:%.1f)", rec.finalWeightGrams, rec.finalRatio);
-      snprintf(l2, sizeof(l2), "DOSIS:%4.1fG T:%u S", rec.doseGrams, rec.durationSec);
+      snprintf(l1, sizeof(l1), TR("PESO:%5.1fG (1:%.1f)", "WATER %5.1fG 1:%.1f"), rec.finalWeightGrams, rec.finalRatio);
+      snprintf(l2, sizeof(l2), TR("DOSIS:%4.1fG T:%u S", "DOSE:%4.1fG T:%u S"), rec.doseGrams, rec.durationSec);
       oledDrawText(4, 24, l1, 1);  // 20 caracteres: cabe entre los bordes del marco
       oledDrawText(4, 40, l2, 1);
     }
@@ -879,7 +881,7 @@ void renderOledScreen() {
       oledDrawText(localBattSensorPresent ? 84 : 104, 1, battBuf, 1);
     }
   } else {
-    oledDrawText(0, 1, "BUSCANDO DOT...", 1);
+    oledDrawText(0, 1, TR("BUSCANDO DOT...", "SEARCHING DOT..."), 1);
   }
   drawLocalBatteryIcon(115, 1);
   oledDrawHLine(0, 10, 128, true);
@@ -920,7 +922,7 @@ void renderOledScreen() {
     }
     oledDrawText(114, 28, "G", 2);
     oledDrawHLine(0, 52, 128, true);
-    oledDrawText(0, 55, "1C:TMR 2C:TARA", 1);
+    oledDrawText(0, 55, TR("1C:TMR 2C:TARA", "1C:TMR 2C:TARE"), 1);
     oledDrawText(86, 55, timeBuf, 1);
     oledFlush();
     return;
