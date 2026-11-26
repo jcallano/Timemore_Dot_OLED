@@ -112,7 +112,7 @@ Desde el resumen, **girar** vuelve a Listo para el siguiente café. Si tienes un
 
 **Perfil en vivo** (vista 2): la gráfica del historial, dibujándose. La línea es el agua y las barras, el caudal de cada vertido. La línea punteada horizontal es el agua objetivo y la vertical, el fin del bloom. Empieza con 3 minutos de ancho y se estira si el café tarda más.
 
-**2 clics** hacen la tara del paso en curso sin perder el server. En Bloom, Vertidos o Drawdown, además, vuelven a empezar los vertidos (de nuevo en Bloom).
+**2 clics** hacen la tara del paso en curso sin perder el server. En Bloom, Vertidos o Drawdown, además, vuelven a empezar los vertidos (de nuevo en Bloom). En Café molido, con el café ya en el V60, **2 clics no hacen nada** (así no se pierde su peso con el filtro ya mojado): la pantalla recuerda `CAFE GUARDADO: GIRA >`.
 
 **Historial de pour-overs:** *Menú → Pour-overs (n/10)*. Se guardan las **10 últimas** preparaciones; se conservan al apagar.
 
@@ -305,3 +305,5 @@ Cuentan como actividad tocar el encoder, cualquier cambio de peso en la Dot y te
 | La Dot se apaga sola | Revisa su batería (en la barra superior de las vistas 1-3). El display le envía un aviso cada 25 s para que no se apague mientras está conectada |
 | En espresso no marca la preinfusión (`PI --`) | El shot arrancó solo con la primera gota. Haz 1 clic al pulsar el botón de la cafetera |
 | El shot no arranca solo | Haz antes **2 clics** (tara): el arranque con la primera gota solo se arma tras una tara, para que poner la taza no lo dispare |
+| El móvil no abre la página del QR (`ERR_LOCAL_NETWORK_PERMISSION_MISSING`, "¿Quieres conectarte a dispositivos cercanos?") | Android no deja a Chrome entrar en la red local. Toca **Continuar** y **Permitir**. Si no sale la pregunta: *Ajustes → Aplicaciones → Chrome → Permisos → Dispositivos cercanos → Permitir*, y recarga la página. Se hace una sola vez. Si aun así Chrome no la abre, escanea el QR con el lector de **Firefox** (en su barra de direcciones) |
+| Beanconqueror dice "Código QR incorrecto" al importar | Tu Beanconqueror es anterior a la **8.8.2**, que es la que trae la importación de preparaciones: actualízalo desde la tienda |

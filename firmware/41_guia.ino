@@ -34,6 +34,7 @@ float guideGroundG          = 0.0f;   // café molido pesado en el V60 (0 = no s
 float guideDoseG            = 0.0f;   // dosis medida de este café (0 = la de la receta)
 float guideBeansCandidate   = 0.0f;   // último peso quieto de los granos en el paso Granos
 bool guideBeansLocked       = false;  // el vaso ya se quitó: los granos no cambian
+unsigned long guideNoticeUntilMs = 0; // aviso "2 clics no borran el café" en el paso Café molido
 bool guidePendingTare       = false;  // Server o V60 esperan peso estable para fijar su tara
 unsigned long guidePendingSinceMs = 0;
 unsigned long brewStartMs   = 0;      // inicio del cronómetro (0 = aún no ha caído agua)
@@ -574,8 +575,17 @@ void guideTare() {
       serverRawGrams = raw;
       setTareOffset(raw);
       break;
-    case GuideStep::Dripper:
-    case GuideStep::Ground:               // el V60 otra vez a 0 (sin el café)
+    case GuideStep::Ground:
+      // Con el café ya en el V60, tarar lo borraría (y el filtro mojado no deja repetir la medida):
+      // 2 clics no hacen nada y la pantalla recuerda que se sigue girando
+      if (raw - dripperEmptyRawGrams >= 1.0f) {
+        guideNoticeUntilMs = millis() + 2500UL;
+        uiNeedsImmediateRedraw = true;
+        Serial.printf("[GUIA] 2 clics ignorados: hay %.1f g de cafe en el V60.\n", raw - dripperEmptyRawGrams);
+        return;
+      }
+      [[fallthrough]];                    // V60 vacío: otra vez a 0
+    case GuideStep::Dripper:              // el V60 otra vez a 0 (sin el café)
       dripperEmptyRawGrams = raw;
       dripperRawGrams      = raw;
       setTareOffset(raw);

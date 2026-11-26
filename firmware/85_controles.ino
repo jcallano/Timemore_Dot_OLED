@@ -573,6 +573,8 @@ void handleSerialCommands() {
       resetTasteModel();
     } else if (c == '.') {
       executeButtonMultiClickAction(1);        // clic simulado
+    } else if (c == ':') {
+      executeButtonMultiClickAction(2);        // doble clic simulado
     } else if (c == 'j' || c == 'J') {
       // TDS simulado (1.61 %) para el registro de la pantalla TDS, y a "¿cómo sabe?"
       if (uiState != UiState::TdsMeasure) openTdsScreen();

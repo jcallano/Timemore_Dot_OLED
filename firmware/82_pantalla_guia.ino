@@ -322,6 +322,8 @@ void renderGuideOled() {
         snprintf(lineA, sizeof(lineA), TR("GRANOS %.1f RET %+.1f", "BEANS %.1f RET %+.1f"), guideBeansG, guideBeansG - net);
       else
         a = TR("ECHA EL CAFE MOLIDO", "ADD THE GROUND COFFEE");
+      // 2 clics con el café dentro no lo borran: se avisa de que para seguir se gira
+      if (millis() < guideNoticeUntilMs) a = TR("CAFE GUARDADO: GIRA >", "COFFEE KEPT: TURN >");
       const float dt = guideBeansG > 0.0f ? guideBeansG : coffeeDoseGrams;
       snprintf(buf, sizeof(buf), "%.1fg", dt);
       drawGuideBar(48, net, dt, buf);
