@@ -617,6 +617,10 @@ static constexpr float POUR_RATIO_MIN    = 10.0f;
 static constexpr float POUR_RATIO_MAX    = 20.0f;
 static constexpr float BLOOM_FACTOR_MIN  = 1.0f;
 static constexpr float BLOOM_FACTOR_MAX  = 4.0f;
+// Temperatura del agua de la receta (°C). Se apunta en cada pour-over: el aparato no la mide.
+uint8_t waterTempC                       = 93;
+static constexpr uint8_t WATER_TEMP_MIN  = 70;
+static constexpr uint8_t WATER_TEMP_MAX  = 100;
 // El modo guiado le dice a storePourRecord() lo que ya sabe: si hubo bloom (-1 = deducirlo de las
 // muestras, como antes) y el agua total marcada al acabar de verter (< 0 = la del último peso)
 int8_t recordBloomOverride               = -1;
@@ -630,7 +634,7 @@ struct GuideTiming {
   uint16_t pourEndDs;      // fin del último vertido (empieza el drawdown)
   uint16_t bloomWaterX10;  // agua del bloom, décimas de g
   uint8_t  taps;           // toques de la tetera descartados
-  uint8_t  flags;          // reservado
+  uint8_t  waterTempC;     // temperatura del agua de la receta, °C (0 = sin dato: antes era un byte reservado)
   uint16_t serverX10;      // peso del server, décimas de g
   uint16_t beansX10;       // granos pesados antes de moler, décimas de g (0 = no se pesaron)
   uint16_t groundX10;      // café molido en el V60, décimas de g (0 = no se pesó)

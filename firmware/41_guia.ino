@@ -172,14 +172,15 @@ void loadGuideTimings() {
         guideTimings[i].pourEndDs     = old[i].pourEndDs;
         guideTimings[i].bloomWaterX10 = old[i].bloomWaterX10;
         guideTimings[i].taps          = old[i].taps;
-        guideTimings[i].flags         = old[i].flags;
         guideTimings[i].serverX10     = old[i].serverX10;
       }
     }
   }
   pourRatio   = p.getFloat("pr_ratio", 16.0f);
   bloomFactor = p.getFloat("bloom_x", 2.0f);
+  waterTempC  = p.getUChar("w_temp", 93);
   p.end();
+  if (waterTempC < WATER_TEMP_MIN || waterTempC > WATER_TEMP_MAX) waterTempC = 93;
   if (isnan(pourRatio) || pourRatio < POUR_RATIO_MIN || pourRatio > POUR_RATIO_MAX) pourRatio = 16.0f;
   if (isnan(bloomFactor) || bloomFactor < BLOOM_FACTOR_MIN || bloomFactor > BLOOM_FACTOR_MAX) bloomFactor = 2.0f;
 }
@@ -191,7 +192,9 @@ void savePourRecipeToNVS() {
   p.putFloat("dose_g", coffeeDoseGrams);
   p.putFloat("pr_ratio", pourRatio);
   p.putFloat("bloom_x", bloomFactor);
+  p.putUChar("w_temp", waterTempC);
   p.end();
+  saveGrindSettings();
 }
 
 // Tiempos de un pour-over (nullptr si no los tiene: hecho antes del modo guiado)
@@ -216,6 +219,7 @@ static void storeGuideTiming(uint16_t id) {
   g.bloomWaterX10 = static_cast<uint16_t>(lroundf(bloomWaterG * 10.0f));
   g.taps          = pourSegmenter.taps();
   g.serverX10     = static_cast<uint16_t>(constrain(lroundf(serverRawGrams * 10.0f), 0L, 65535L));
+  g.waterTempC    = waterTempC;
   g.beansX10      = static_cast<uint16_t>(constrain(lroundf(guideBeansG * 10.0f), 0L, 65535L));
   g.groundX10     = static_cast<uint16_t>(constrain(lroundf(guideGroundG * 10.0f), 0L, 65535L));
   Preferences p;
@@ -356,10 +360,12 @@ static void guideStartPendingTare() {
 }
 
 // ---------------------------------------------------------------------------
-// Receta en la pantalla Listo: 1 clic edita la dosis, clic -> ratio, clic -> bloom, clic -> guarda.
+// Receta en la pantalla Listo: 1 clic edita la dosis, clic -> ratio, clic -> bloom, clic -> molienda,
+// clic -> temperatura del agua, clic -> guarda. La molienda es la del molino para filtrado (46_extraccion).
 // Girar ajusta el valor resaltado. 2 o 3 clics guardan y salen. Se guarda en la NVS al salir.
 // ---------------------------------------------------------------------------
-int8_t guideRecipeField = -1;   // -1 = sin editar, 0 = dosis, 1 = ratio, 2 = bloom
+int8_t guideRecipeField = -1;   // -1 = sin editar, 0 = dosis, 1 = ratio, 2 = bloom, 3 = molienda, 4 = agua (°C)
+static constexpr int8_t GUIDE_RECIPE_LAST = 4;
 
 bool guideRecipeEditing() { return guideRecipeField >= 0; }
 
@@ -368,13 +374,14 @@ void guideRecipeDone() {
   guideRecipeField = -1;
   savePourRecipeToNVS();
   uiNeedsImmediateRedraw = true;
-  Serial.printf("[GUIA] Receta: %.1f g, 1:%.1f (%.0f g), bloom x%.1f (%.0f g).\n", coffeeDoseGrams, pourRatio,
-                targetWaterGrams(), bloomFactor, bloomTargetGrams());
+  Serial.printf("[GUIA] Receta: %.1f g, 1:%.1f (%.0f g), bloom x%.1f (%.0f g), molienda %.1f, agua %u C.\n",
+                coffeeDoseGrams, pourRatio, targetWaterGrams(), bloomFactor, bloomTargetGrams(), grindForMode(),
+                (unsigned)waterTempC);
 }
 
 void guideRecipeClick() {
   if (guideRecipeField < 0)      guideRecipeField = 0;
-  else if (guideRecipeField < 2) guideRecipeField++;
+  else if (guideRecipeField < GUIDE_RECIPE_LAST) guideRecipeField++;
   else                           guideRecipeDone();
   uiNeedsImmediateRedraw = true;
 }
@@ -387,6 +394,11 @@ void guideRecipeAdjust(int32_t delta) {
     pourRatio = constrain(roundf((pourRatio + d * 0.1f) * 10.0f) / 10.0f, POUR_RATIO_MIN, POUR_RATIO_MAX);
   } else if (guideRecipeField == 2) {
     bloomFactor = constrain(roundf((bloomFactor + d * 0.5f) * 10.0f) / 10.0f, BLOOM_FACTOR_MIN, BLOOM_FACTOR_MAX);
+  } else if (guideRecipeField == 3) {
+    nudgeGrind(delta);
+  } else if (guideRecipeField == 4) {
+    waterTempC = static_cast<uint8_t>(constrain(static_cast<int>(waterTempC) + static_cast<int>(delta),
+                                                static_cast<int>(WATER_TEMP_MIN), static_cast<int>(WATER_TEMP_MAX)));
   }
   uiNeedsImmediateRedraw = true;
 }

@@ -29,7 +29,8 @@ struct TraceHeader {
   float    bloomFactor;
   float    serverRaw;
   uint8_t  demo;          // 1 = demostración ('v'), no una preparación real
-  uint8_t  pad[3];
+  uint8_t  waterTempC;    // temperatura del agua de la receta, °C (0 = traza anterior, sin dato)
+  uint16_t grindX10;      // molienda x10 (0 = traza anterior, sin dato)
 };
 
 static TraceSample* traceBuf      = nullptr;
@@ -142,6 +143,8 @@ uint32_t traceSave(uint16_t pourId) {
   h.bloomFactor = bloomFactor;
   h.serverRaw   = serverRawGrams;
   h.demo        = demoLiveActive ? 1 : 0;
+  h.waterTempC  = waterTempC;
+  h.grindX10    = static_cast<uint16_t>(lroundf(grindForMode() * 10.0f));
 
   char path[32];
   tracePath(traceSavedSeq, path, sizeof(path));
@@ -228,9 +231,9 @@ void traceListSerial() {
     char dt[20] = "-";
     if (h.epoch != 0) formatDateTime(h.epoch, dt, sizeof(dt));
     traceWaitRoom();
-    Serial.printf("[TRZ] %lu pour=%u muestras=%u eventos=%u dosis=%.1f ratio=%.1f fecha=%s%s\n",
-                  (unsigned long)h.seq, h.pourId, h.nSamples, h.nEvents, h.dose, h.ratio, dt,
-                  h.demo ? " demo" : "");
+    Serial.printf("[TRZ] %lu pour=%u muestras=%u eventos=%u dosis=%.1f ratio=%.1f molienda=%.1f agua=%u fecha=%s%s\n",
+                  (unsigned long)h.seq, h.pourId, h.nSamples, h.nEvents, h.dose, h.ratio, h.grindX10 / 10.0f,
+                  (unsigned)h.waterTempC, dt, h.demo ? " demo" : "");
   }
   traceWaitRoom();
   Serial.println("[TRZ] FIN");
@@ -257,8 +260,9 @@ void traceDumpSerial(uint32_t seq) {
   if (h.epoch != 0) formatDateTime(h.epoch, dt, sizeof(dt));
   Serial.printf("[CSV] BEGIN %lu\n", (unsigned long)h.seq);
   traceWaitRoom();
-  Serial.printf("# traza=%lu pour=%u fecha=%s dosis=%.1f ratio=%.1f bloom_x=%.1f server_bruto=%.1f demo=%u\n",
-                (unsigned long)h.seq, h.pourId, dt, h.dose, h.ratio, h.bloomFactor, h.serverRaw, h.demo);
+  Serial.printf("# traza=%lu pour=%u fecha=%s dosis=%.1f ratio=%.1f bloom_x=%.1f server_bruto=%.1f demo=%u molienda=%.1f agua_c=%u\n",
+                (unsigned long)h.seq, h.pourId, dt, h.dose, h.ratio, h.bloomFactor, h.serverRaw, h.demo,
+                h.grindX10 / 10.0f, (unsigned)h.waterTempC);
   traceWaitRoom();
   Serial.println("t_ms,bruto_g,neto_g,caudal_gps,estable");
   TraceSample buf[32];

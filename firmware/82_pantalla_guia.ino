@@ -186,8 +186,8 @@ static void renderGuideSummaryOled() {
 
   const float water = waterTotalG;
   const float dose  = rec ? rec->doseGrams : brewDoseGrams();
-  snprintf(line, sizeof(line), TR("AGUA %.0fg  1:%.1f", "WATER %.0fg  1:%.1f"), water,
-           dose > 0.1f ? water / dose : 0.0f);
+  snprintf(line, sizeof(line), TR("AGUA %.0fg 1:%.1f %uC", "WATER %.0fg 1:%.1f %uC"), water,
+           dose > 0.1f ? water / dose : 0.0f, (unsigned)waterTempC);
   oledDrawText(2, 14, line, 1);
 
   char pours[8];
@@ -252,8 +252,14 @@ void renderGuideOled() {
   else if (guideStep == GuideStep::Beans && guideBeansLocked) w = guideBeansCandidate;
   if (fabsf(w) < 0.05f) w = 0.0f;
   snprintf(buf, sizeof(buf), "%5.1f", w);
-  oledDrawText(4, 14, buf, 3);
-  oledDrawText(110, 21, "g", 2);
+  if (guideStep == GuideStep::Ready) {
+    // En Listo manda la receta: el peso, más pequeño
+    oledDrawText(4, 14, buf, 2);
+    oledDrawText(66, 21, "g", 1);
+  } else {
+    oledDrawText(4, 14, buf, 3);
+    oledDrawText(110, 21, "g", 2);
+  }
 
   const char* a = nullptr;
   const char* c = nullptr;
@@ -262,16 +268,22 @@ void renderGuideOled() {
 
   switch (guideStep) {
     case GuideStep::Ready: {
-      // Receta: dosis y ratio (agua objetivo) y bloom; con 1 clic se edita, el campo activo en negativo
-      char dose[10], ratio[10], water[12], bloom[10], bloomG[12];
+      // Receta: dosis y ratio (agua objetivo), bloom, molienda y temperatura del agua; con 1 clic se
+      // edita, el campo activo en negativo
+      char dose[10], ratio[10], water[12], bloom[10], bloomG[12], grind[10], temp[8];
       snprintf(dose, sizeof(dose), "%.1fg", coffeeDoseGrams);
       snprintf(ratio, sizeof(ratio), "1:%.1f", pourRatio);
       snprintf(water, sizeof(water), " >%.0fg", target);
       snprintf(bloom, sizeof(bloom), "X%.1f", bloomFactor);
       snprintf(bloomG, sizeof(bloomG), " >%.0fg", bloomTargetGrams());
-      drawTextHighlight(0, 40, "", dose, guideRecipeField == 0, " ");
-      drawTextHighlight(6 * (static_cast<int>(strlen(dose)) + 1), 40, "", ratio, guideRecipeField == 1, water);
-      drawTextHighlight(0, 48, "BLOOM ", bloom, guideRecipeField == 2, bloomG);
+      snprintf(grind, sizeof(grind), "%.1f", grindPour);
+      snprintf(temp, sizeof(temp), "%uC", (unsigned)waterTempC);
+      drawTextHighlight(0, 31, "", dose, guideRecipeField == 0, " ");
+      drawTextHighlight(6 * (static_cast<int>(strlen(dose)) + 1), 31, "", ratio, guideRecipeField == 1, water);
+      drawTextHighlight(0, 39, "BLOOM ", bloom, guideRecipeField == 2, bloomG);
+      const char* gl = TR("MOLIENDA ", "GRIND ");
+      drawTextHighlight(0, 47, gl, grind, guideRecipeField == 3, "  ");
+      drawTextHighlight(6 * static_cast<int>(strlen(gl) + strlen(grind) + 2), 47, "", temp, guideRecipeField == 4, "");
       c = guideRecipeEditing() ? TR("GIRA:AJUSTA CLIC:SIG", "TURN:ADJUST CLICK:NXT")
                                : TR("CLIC:RECETA  GIRA >", "CLICK:RECIPE TURN >");
       break;
