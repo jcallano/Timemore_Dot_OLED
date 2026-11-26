@@ -221,6 +221,7 @@ static void shareAppendEnvelope(String& o, const PourOverRecord& r) {
   o += F(",\"unit\":\"ml\"},\"beverageOut\":{\"value\":"); jsonNum(o, bev, 1);
   o += F(",\"unit\":\"g\"},\"brewTime\":");    jsonNum(o, fl.brewTimeS, 1);
   o += F(",\"ratio\":");                       jsonNum(o, r.finalRatio > 0 ? r.finalRatio : 0.0f, 1);
+  if (gt && gt->waterTempC) { o += F(",\"temperature\":"); o += String(gt->waterTempC); }
   if (grind >= 0.0f) { o += F(",\"grindSize\":"); char g[12]; snprintf(g, sizeof(g), "%.1f", grind); jsonStr(o, g); }
   o += F(",\"preparationMethod\":\"V60\",\"preparationType\":\"V60\"");
   if (r.hasBloom && gt && gt->bloomEndDs) { o += F(",\"bloomTime\":"); jsonNum(o, gt->bloomEndDs / 10.0f, 1); }

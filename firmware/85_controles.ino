@@ -304,8 +304,7 @@ void applyEncoderDelta(int32_t delta) {
       } else if (menuEditItem == MI_RATIO) {
         espRatio = constrain(roundf((espRatio + d * 0.1f) * 10.0f) / 10.0f, ESP_RATIO_MIN, ESP_RATIO_MAX);
       } else if (menuEditItem == MI_GRIND) {
-        float& g = grindForMode();
-        g = constrain(roundf((g + d * 0.1f) * 10.0f) / 10.0f, GRIND_MIN, GRIND_MAX);
+        nudgeGrind(delta);
       } else if (menuEditItem == MI_TARGET_TIME) {
         espTargetSec = static_cast<uint8_t>(constrain(static_cast<int>(espTargetSec) + static_cast<int>(delta),
                                                       static_cast<int>(ESP_TIME_MIN_S), static_cast<int>(ESP_TIME_MAX_S)));

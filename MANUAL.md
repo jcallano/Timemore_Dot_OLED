@@ -67,11 +67,13 @@ Si el display tiene medidor de batería, su icono aparece arriba a la derecha. S
 
 El pour-over va por pasos. **Girar el encoder una muesca pasa al paso siguiente** y girar hacia atrás vuelve al anterior y deshace lo que hizo. El peso nunca cambia de paso por su cuenta: si tocas el V60 o la jarra sin querer, no pasa nada. La pantalla dice siempre qué hacer y qué hará el siguiente giro (`GIRA >`).
 
-**La receta se ajusta en el paso Listo**, a la vista: **dosis**, **ratio** (el agua objetivo es dosis × ratio) y **bloom** (el agua del bloom de referencia es dosis × factor). **1 clic** resalta la dosis y **girar** la ajusta (de 0,5 en 0,5 g); otro clic pasa al ratio (de 0,1 en 0,1, de 1:10 a 1:20), otro al bloom (de 0,5 en 0,5, de ×1 a ×4) y otro guarda. **2 clics** también guardan. La receta se recuerda al apagar: el siguiente café empieza con la última.
+**La receta se ajusta en el paso Listo**, a la vista: **dosis**, **ratio** (el agua objetivo es dosis × ratio), **bloom** (el agua del bloom de referencia es dosis × factor), **molienda** (el número del dial de tu molino) y **temperatura del agua**. **1 clic** resalta la dosis y **girar** la ajusta (de 0,5 en 0,5 g); cada clic pasa al siguiente: ratio (de 0,1 en 0,1, de 1:10 a 1:20), bloom (de 0,5 en 0,5, de ×1 a ×4), molienda (de 0,1 en 0,1) y agua (de 1 en 1 °C, de 70 a 100 °C), y el último guarda. **2 clics** también guardan. La receta se recuerda al apagar: el siguiente café empieza con la última.
+
+**Para repetir un buen café**, cada pour-over guarda todo lo que lo define: dosis (la pesada), agua, ratio, bloom, molienda, temperatura del agua, granos y retención del molino, tiempos (bloom, vertidos y drawdown), caudal, yield y, si lo mides, TDS y extracción. La temperatura la pones tú (el aparato no la mide): apunta la de tu hervidor.
 
 | Listo | Editando la receta |
 | :---: | :---: |
-| <img src="docs/img/pantallas/guia/01_listo.png" width="340" alt="Listo: dosis 15 g, ratio 1:16.7, 251 g de agua, bloom x3 = 45 g"> | <img src="docs/img/pantallas/guia/01b_receta.png" width="340" alt="Receta en edición: la dosis resaltada; girar la ajusta"> |
+| <img src="docs/img/pantallas/guia/01_listo.png" width="340" alt="Listo: dosis 15 g, ratio 1:17, 255 g de agua, bloom x3 = 45 g, molienda 1,8 y agua a 93 °C"> | <img src="docs/img/pantallas/guia/01b_receta.png" width="340" alt="Receta en edición: la molienda resaltada; girar la ajusta"> |
 
 | Paso | Lo que haces | Lo que hace el aparato |
 | :--- | :--- | :--- |
@@ -100,7 +102,7 @@ Desde el resumen, **girar** vuelve a Listo para el siguiente café. Si tienes un
 | **Bloom: espera** | **Vertidos** | **Yield** |
 | <img src="docs/img/pantallas/guia/05_bloom_espera.png" width="260" alt="Espera del bloom: 0:05"> | <img src="docs/img/pantallas/guia/06_vertidos.png" width="260" alt="Vertidos: 108 g, 3.0 g/s, faltan 143 g, bloom y 1 tanda"> | <img src="docs/img/pantallas/guia/10_yield_medido.png" width="260" alt="Yield medido: 215 g"> |
 | **Resumen** | **Perfil en vivo (vista 2)** | **Menú** |
-| <img src="docs/img/pantallas/guia/11_resumen.png" width="260" alt="Resumen: 250 g de agua, 1:16.5, yield 215 g, bloom y 3 tandas, bloom 0:29, drawdown 0:40, dosis 15,1 g y retención +0,2 g"> | <img src="docs/img/pantallas/guia/12_perfil.png" width="260" alt="Perfil: peso acumulado, barras de caudal, línea del objetivo y fin del bloom"> | <img src="docs/img/pantallas/guia/14_menu.png" width="260" alt="Menú de pour-over: molino, TDS, bolsa nueva y sentido del molino"> |
+| <img src="docs/img/pantallas/guia/11_resumen.png" width="260" alt="Resumen: 250 g de agua, 1:16.5, agua a 93 °C, yield 215 g, bloom y 3 tandas, bloom 0:29, drawdown 0:40, dosis 15,1 g y retención +0,2 g"> | <img src="docs/img/pantallas/guia/12_perfil.png" width="260" alt="Perfil: peso acumulado, barras de caudal, línea del objetivo y fin del bloom"> | <img src="docs/img/pantallas/guia/14_menu.png" width="260" alt="Menú de pour-over: molino, TDS, bolsa nueva y sentido del molino"> |
 
 *Capturas de la demostración `v` del monitor serie ([TECNICO.md](./docs/TECNICO.md#5-monitor-serie-115200)): 15,3 g de granos, 15,1 g de café molido, 250 g de agua, bloom de 45 g y un toque de la tetera durante la espera.*
 
@@ -115,14 +117,14 @@ Desde el resumen, **girar** vuelve a Listo para el siguiente café. Si tienes un
 **Historial de pour-overs:** *Menú → Pour-overs (n/10)*. Se guardan las **10 últimas** preparaciones; se conservan al apagar.
 
 - **Gira** para elegir una. La cabecera muestra el número, el agua, el ratio y la duración.
-- **1 clic** pasa a la página siguiente: la **gráfica** (la misma que el perfil en vivo), la **ficha** (agua, o granos y retención del molino si se pesaron; dosis y ratio, caudal medio y máximo, y vertidos), el gráfico de control si tiene TDS y, al final, **Enviar a Beanconqueror**.
+- **1 clic** pasa a la página siguiente: la **gráfica** (la misma que el perfil en vivo), la **ficha** (agua, o granos y retención del molino si se pesaron; dosis y ratio; molienda y temperatura del agua; y vertidos), el gráfico de control si tiene TDS y, al final, **Enviar a Beanconqueror**.
 - **2 o 3 clics** para salir.
 
 **Enviar a Beanconqueror:** en la última página del historial, **1 clic**. El aparato apaga el Bluetooth (con el café hecho, la Dot no hace falta), se conecta a tu WiFi y muestra un **código QR**.
 
 1. Escanéalo con la cámara del móvil donde tienes Beanconqueror. Se abre una página del aparato con tus cafés guardados: el elegido y los que aún no enviaste ya vienen marcados.
 2. La primera vez, abre *Nombres en tu Beanconqueror* y escribe el método, el molino y el café **como se llaman en tu app**. El móvil los recuerda.
-3. Toca **Enviar a Beanconqueror**. La app se abre e importa los cafés: dosis (el café molido pesado), agua, bebida (el yield medido), tiempo, bloom, molienda, fecha y la curva de peso. El **TDS y la extracción**, los granos y la retención del molino van en la nota, porque la importación de Beanconqueror aún no tiene campo para ellos. Los cafés quedan marcados como **ENVIADO**.
+3. Toca **Enviar a Beanconqueror**. La app se abre e importa los cafés: dosis (el café molido pesado), agua, bebida (el yield medido), tiempo, bloom, molienda, temperatura del agua, fecha y la curva de peso. El **TDS y la extracción**, los granos y la retención del molino van en la nota, porque la importación de Beanconqueror aún no tiene campo para ellos. Los cafés quedan marcados como **ENVIADO**.
 4. **1 clic** en el aparato para terminar (o se cierra solo a los 3 minutos sin uso). Vuelve el Bluetooth y la Dot se reconecta sola.
 
 | <img src="docs/img/pantallas/guia/15_enviar.png" width="260" alt="Historial, última página: enviar a Beanconqueror el pour-over #22, ya enviado"> | <img src="docs/img/pantallas/guia/16_qr_red_casa.png" width="260" alt="QR con la dirección del aparato en tu WiFi"> | <img src="docs/img/pantallas/guia/17_qr_red_propia.png" width="260" alt="Sin WiFi guardado: QR para unirse a la red TMDOT-8364 del aparato, con su clave"> |
@@ -226,16 +228,22 @@ Se abre con **3 clics** (o manteniendo pulsado 1,5 s). Gira para moverte y haz 1
 
 | Pour-over | Espresso |
 | :---: | :---: |
-| <img src="docs/img/pantallas/guia/14_menu.png" width="340" alt="Menú en modo pour-over: molino, TDS, bolsa nueva y sentido del molino"> | <img src="docs/img/pantallas/12_menu_espresso.png" width="340" alt="Menú en modo espresso: dosis, ratio, tiempo y shots"> |
+| <img src="docs/img/pantallas/guia/14_menu.png" width="340" alt="Menú en modo pour-over: TDS, bolsa nueva, sentido del molino, tu gusto e historial"> | <img src="docs/img/pantallas/12_menu_espresso.png" width="340" alt="Menú en modo espresso: dosis, ratio, tiempo y shots"> |
 
 | Opción | Modo | Qué hace |
 | :--- | :--- | :--- |
 | **Dosis** | espresso | 5-30 g, de 0,1 en 0,1 g. La del pour-over se ajusta en su paso Listo (3.2) |
 | **Ratio** | espresso | 1:1,0 a 1:4,0; muestra el peso objetivo (3.3) |
 | **Tiempo** | espresso | Tiempo objetivo del shot, 10-90 s |
+| **Molino** | espresso | El número del dial de tu molino para espresso. La del pour-over se pone en su paso Listo (3.2) |
+| **TDS (R2)** | los dos | Medir el TDS de un café con el DiFluid R2 |
+| **Bolsa nueva** | los dos | Empieza otra bolsa de café: la molienda de la anterior deja de servir de referencia |
+| **Molino+** | los dos | Hacia dónde muele más grueso tu molino al subir el número |
+| **Tu gusto** | los dos | Lo que la red neuronal ha aprendido de tus valoraciones |
 | **Pour-overs (n/10)** / **Shots (n/10)** | según el modo | Abre el historial (3.2 / 3.3) |
 | **Modo** | los dos | Pour-over ↔ espresso (3.4). El cursor se queda en esta opción |
 | **Brillo** | los dos | Bajo / medio / alto |
+| **Idioma** | los dos | Inglés o español |
 | **Puente BooKoo: ON/OFF** | los dos | Puente con la Wendougee (3.5) |
 | **Re-vincular Dot** | los dos | Olvida la Dot y busca otra |
 | **Actualizar (BLE)** | los dos | Actualizar el firmware por Bluetooth (3.7) |

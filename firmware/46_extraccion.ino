@@ -163,6 +163,12 @@ void storeMeasuredBeverage(uint16_t pourId, float bev, float waterG, float doseG
 // ---------------------------------------------------------------------------
 float& grindForMode() { return (brewMode == BrewMode::Espresso) ? grindEsp : grindPour; }
 
+// Giro en la receta o en el menú: la molienda del modo de 0,1 en 0,1
+void nudgeGrind(int32_t delta) {
+  float& g = grindForMode();
+  g = constrain(roundf((g + static_cast<float>(delta) * 0.1f) * 10.0f) / 10.0f, GRIND_MIN, GRIND_MAX);
+}
+
 void saveGrindSettings() {
   Preferences p;
   p.begin(NVS_POUR_NAMESPACE, false);

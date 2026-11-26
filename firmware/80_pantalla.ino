@@ -72,7 +72,12 @@ void renderPourOverViewerOled() {
     else
       snprintf(line1, sizeof(line1), TR("AGUA/BEBIDA: %5.1f g", "WATER: %5.1f g"), rec.finalWeightGrams);
     snprintf(line2, sizeof(line2), TR("DOSIS:%4.1fg -> 1:%4.1f", "DOSE:%4.1fg -> 1:%4.1f"), rec.doseGrams, rec.finalRatio);
-    snprintf(line3, sizeof(line3), TR("FLOW MED:%3.1f MAX:%3.1f", "FLOW AVG:%3.1f MAX:%3.1f"), rec.avgFlowGps, rec.peakFlowGps);
+    // Molienda y agua (lo que se repite para repetir el café); sin ellas, el caudal
+    const float rg = recordGrind(false, rec.pourId);
+    const uint8_t rt = gt ? gt->waterTempC : 0;
+    if (rg >= 0.0f && rt)  snprintf(line3, sizeof(line3), TR("MOLIENDA %.1f AGUA %uC", "GRIND %.1f WATER %uC"), rg, (unsigned)rt);
+    else if (rg >= 0.0f)   snprintf(line3, sizeof(line3), TR("MOLIENDA %.1f MAX%.1f", "GRIND %.1f MAX %.1f"), rg, rec.peakFlowGps);
+    else snprintf(line3, sizeof(line3), TR("FLOW MED:%3.1f MAX:%3.1f", "FLOW AVG:%3.1f MAX:%3.1f"), rec.avgFlowGps, rec.peakFlowGps);
     // <= 21 caracteres (128 px)
     float pTds = 0.0f;
     if (recordTds(false, rec.pourId, &pTds, nullptr)) {
@@ -110,8 +115,7 @@ uint8_t buildMenuItems(uint8_t* ids) {
     ids[n++] = MI_BAG;
     ids[n++] = MI_GRIND_DIR;
   } else {
-    // La receta del pour-over (dosis, ratio, bloom) se ajusta en la pantalla Listo (41_guia.ino)
-    ids[n++] = MI_GRIND;
+    // La receta del pour-over (dosis, ratio, bloom, molienda y agua) se ajusta en la pantalla Listo (41_guia.ino)
     ids[n++] = MI_TDS;
     ids[n++] = MI_BAG;
     ids[n++] = MI_GRIND_DIR;
