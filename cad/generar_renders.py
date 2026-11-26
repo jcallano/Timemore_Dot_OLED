@@ -8,7 +8,7 @@ Ejecutar DESPUÉS de generar_ensamble.py, con la interfaz gráfica (no con freec
 Abre una ventana de FreeCAD, renderiza y se cierra sola. Crea en renders/:
     raw/montado.png, raw/explosionado.png, raw/interior.png, raw/trasera.png   (1600 x 1200)
     frames/f_000.png ...                                       (fotogramas de la animación)
-y deja "renders/LISTO.txt" al terminar. La animación se monta con ffmpeg (ver LEEME_caja.md):
+y deja "renders/LISTO.txt" al terminar. La animación se monta con ffmpeg (ver README.md):
     giro de 360° del aparato montado, explosionado, giro explosionado y vuelta a montar.
 """
 import math

@@ -1,5 +1,13 @@
 # Caja del display Timemore Dot
 
+## Impresión real
+
+<img src="impresion/timelapse_impresion.gif" width="480" alt="Timelapse de la impresión de la carcasa: las paredes de la cuña suben capa a capa, con un soporte de árbol bajo el panel inclinado y otras piezas al lado">
+
+*Timelapse de la impresión de la carcasa, acelerado ([vídeo en MP4](impresion/timelapse_impresion.mp4)). Pendiente: fotos del aparato impreso y montado.*
+
+## Diseño
+
 <img src="renders/animacion.gif" width="560" alt="Animación de la caja: giro de 360°, explosionado con la placa, el cargador y la batería, y vuelta a montar">
 
 *La caja v2 con los modelos reales de los componentes ([vídeo en MP4](renders/animacion.mp4)).*
@@ -9,10 +17,6 @@
 | <img src="renders/montado.png" width="400" alt="Caja montada: encoder a la izquierda y OLED a la derecha en el panel inclinado"> | <img src="renders/explosionado.png" width="400" alt="Vista explosionada: carcasa arriba; tapa con portapilas, WeAct ESP32-S3 y TP4056 abajo"> |
 | **Interior (sin carcasa)** | **Trasera** |
 | <img src="renders/interior.png" width="400" alt="Interior: OLED con sus pisadores, encoder, interruptor, batería 18650 y placas"> | <img src="renders/trasera.png" width="400" alt="Trasera: interruptor y USB-C de carga; lateral con los USB-C del ESP32"> |
-
-## Impresión real
-
-*Pendiente: fotos del aparato impreso y montado, y el timelapse de la impresión.*
 
 ## Archivos
 
@@ -31,7 +35,7 @@
 ## Detalles (v2, 24/11/2026; la v1 está en `respaldo_v1/`)
 - **Encaje tapa-carcasa (cuna)**: la tapa va **dentro** de la carcasa. Las paredes (2.4 mm) llevan abajo un galce de 1.2 × 3 mm donde la tapa apoya en todo el perímetro y queda enrasada por debajo. Encima, la tapa lleva un labio de centrado de 1.2 × 3 mm pegado por dentro a las paredes (`reb_w`, `lip_t`, `lip_h`).
 - **OLED 2.42" encajonada**: ventana de 63.5 × 40.5 mm (marco metálico de 63 × 40 medido + `clr`). El módulo entra en ella y el cristal queda 0.3 mm hundido (`oled_rec`). **Antes de montar, dobla 90° los 4 pines del header hacia el borde superior de la OLED (hacia la pared trasera), justo por encima del plástico**: así el dupont queda paralelo al panel y no baja sobre el ESP32. La OLED está 3 mm más abajo en la pendiente (`oled_s` = 37) para que los cables quepan antes de llegar a la pared trasera. La cara del PCB apoya en dos topes a los lados de la ventana, y el panel lleva un rebaje donde asoman por delante los pines del header.
-  - **Sujeción**: dos **pisadores** impresos (`PisadorOLED_izq/der.stl`) aprietan el borde izquierdo y derecho del PCB por detrás, con 0.15 mm de precarga. Cada uno lleva 2 **tornillos M2.5 × 6** a **insertos de latón M2.5 × 3 × Ø3.5** (agujero de Ø3.2 × 3.5) en 4 torretas que quedan fuera del PCB. No se usan los agujeros de la OLED: están a 1.25 mm del marco y el inserto no cabe ahí.
+  - **Sujeción**: dos **pisadores** impresos (`PisadorOLED_izq/der.stl`) aprietan el borde izquierdo y derecho del PCB por detrás, con 0.15 mm de precarga. Cada uno lleva 2 **tornillos M2.5 × 6** a **insertos de latón M2.5 × 3 × Ø3.5** (agujero de Ø3.4 × 3.5: la guía lisa de los insertos mide 3.0 y en FDM el agujero sale ~0.2 mm más estrecho; con Ø3.2 la guía no entraba) en 4 torretas que quedan fuera del PCB. No se usan los agujeros de la OLED: están a 1.25 mm del marco y el inserto no cabe ahí.
 - **Encoder** (STEP ec11 v2): sin cambios. Agujero de Ø7.4 para la rosca M7, cuerpo apoyado en el panel de 2 mm y pines hacia la parte alta del panel.
 - **WeAct ESP32-S3-A** (no tiene agujeros de montaje). Los pines y los dupont van **hacia abajo**, así que el PCB queda 22 mm sobre la tapa (`esp_lift`).
   - **Apoyo**: un bastidor central entre las dos filas de dupont.

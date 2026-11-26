@@ -194,12 +194,21 @@ void oledDrawRect(int x, int y, int w, int h, bool on = true) {
   }
 }
 
+// Minúsculas propias: solo las de las unidades (g, g/s). El resto se dibuja en mayúscula.
+static const uint8_t FONT_LOWER_G[5] PROGMEM = {0x0C, 0x52, 0x52, 0x52, 0x3E};   // 'g' (cola en la fila 6)
+static const uint8_t FONT_LOWER_S[5] PROGMEM = {0x48, 0x54, 0x54, 0x54, 0x20};   // 's'
+
 void oledDrawChar(int x, int y, char c, uint8_t scale = 1, bool invert = false) {
-  if (c >= 'a' && c <= 'z') {
-    c = static_cast<char>(c - ('a' - 'A'));
+  const uint8_t* glyph = nullptr;
+  if (c == 'g') {
+    glyph = FONT_LOWER_G;
+  } else if (c == 's') {
+    glyph = FONT_LOWER_S;
+  } else {
+    if (c >= 'a' && c <= 'z') c = static_cast<char>(c - ('a' - 'A'));
+    if (c < 32 || c > 95) c = '?';
+    glyph = FONT_5X7[c - 32];
   }
-  if (c < 32 || c > 95) c = '?';
-  const uint8_t* glyph = FONT_5X7[c - 32];
 
   for (uint8_t col = 0; col < 5; col++) {
     uint8_t line = pgm_read_byte(&glyph[col]);

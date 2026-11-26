@@ -32,7 +32,7 @@ void enterDeepSleepMode(const char* reasonMsg) {
     oledClear();
     oledDrawRect(0, 0, 128, 64, true);
     oledDrawText(16, 16, reasonMsg, 1);
-    oledDrawText(8, 36, "CLICK/GIRO = WAKE", 1);
+    oledDrawText(8, 36, TR("CLICK/GIRO = WAKE", "CLICK/TURN = WAKE"), 1);
     oledFlush();
     delay(700);
     oledPowerOff();
@@ -189,11 +189,11 @@ void enterBatteryCutoff() {
     oledSetContrast(getActiveOledContrast());
     oledClear();
     oledDrawRect(0, 0, 128, 64, true);
-    oledDrawText(22, 12, "BATERIA BAJA", 1);
+    oledDrawText(22, 12, TR("BATERIA BAJA", "LOW BATTERY"), 1);
     char vBuf[16];
     snprintf(vBuf, sizeof(vBuf), "%.2f V", localBattVolts);
     oledDrawText(40, 26, vBuf, 1);
-    oledDrawText(16, 42, "CARGA POR USB-C", 1);
+    oledDrawText(16, 42, TR("CARGA POR USB-C", "CHARGE VIA USB-C"), 1);
     oledFlush();
     delay(2500);
     oledPowerOff();
@@ -289,7 +289,8 @@ void updateBatteryAndPowerManagement() {
   // (no con la máquina conectada por el puente BooKoo: dormir apaga la radio y la máquina pierde la báscula;
   //  ni conectado a un ordenador por USB: el reposo apaga el USB y no se podría cargar firmware ni ver el
   //  monitor serie. isPlugged() detecta las tramas SOF del host: un cargador sin datos no cuenta)
-  if (inactiveMs >= AUTO_SLEEP_TIMEOUT_MS && !bookooMachineConnected && !HWCDC::isPlugged()) {
-    enterDeepSleepMode("MODO REPOSO");
+  if (inactiveMs >= AUTO_SLEEP_TIMEOUT_MS && !bookooMachineConnected &&
+      !HWCDC::isPlugged()) {
+    enterDeepSleepMode(TR("MODO REPOSO", "SLEEP MODE"));
   }
 }

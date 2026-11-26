@@ -42,8 +42,7 @@ static void fermentShowNotice(const char* msg) {
   uiNeedsImmediateRedraw = true;
 }
 
-bool clockIsSet() { return time(nullptr) > static_cast<time_t>(CLOCK_VALID_EPOCH); }
-static uint32_t nowEpochOrZero() { return clockIsSet() ? static_cast<uint32_t>(time(nullptr)) : 0; }
+// clockIsSet() y nowEpochOrZero(): 75_wifi_time.ino
 
 float fermentSaltForBase(float baseGrams) { return baseGrams * fermentSaltPct / 100.0f; }
 
@@ -223,20 +222,7 @@ void formatShortDate(uint32_t epoch, char* out, size_t cap) {
   snprintf(out, cap, "%02d/%02d", tmv.tm_mday, tmv.tm_mon + 1);
 }
 
-// Orden serie 'z<epoch>': poner el reloj (sobrevive al reposo profundo, no al interruptor)
-void fermentSetClock(uint32_t epoch) {
-  if (epoch < CLOCK_VALID_EPOCH) {
-    Serial.println("[RELOJ] Hora no valida (z seguido de segundos desde 1970, UTC).");
-    return;
-  }
-  struct timeval tv;
-  tv.tv_sec  = static_cast<time_t>(epoch);
-  tv.tv_usec = 0;
-  settimeofday(&tv, nullptr);
-  char d[8];
-  formatShortDate(epoch, d, sizeof(d));
-  Serial.printf("[RELOJ] Hora puesta: %lu (%s)\n", static_cast<unsigned long>(epoch), d);
-}
+// Poner el reloj (orden serie z<epoch>): setClockFromEpoch() en 75_wifi_time.ino
 
 // Estado del LED mientras se echa la sal: 0 nada, 1 cerca (90 %), 2 listo, 3 sobra
 uint8_t fermentSaltLedState() {

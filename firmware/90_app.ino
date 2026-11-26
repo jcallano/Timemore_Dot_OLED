@@ -39,6 +39,11 @@ void setup() {
 
   initPsramAndLoadPours();
   loadEspressoSettingsAndShots();   // modo, receta de espresso e historial de shots
+  loadBrewExtras();                 // TDS y bebida de cada registro
+  loadGuideTimings();               // pour-over guiado: receta (ratio, bloom) y tiempos de cada registro
+  traceInit();                      // trazas a 10 Hz en la flash (LittleFS)
+  loadTasteModel();                 // red neuronal del gusto (la primera vez se preentrena)
+  loadR2Settings();                 // refractómetro DiFluid R2 vinculado
   loadFermentData();                // % de sal y lotes de fermento
   initOledDisplay();
   updateBatteryAndPowerManagement();
@@ -52,6 +57,9 @@ void setup() {
   loadSavedScaleFromNVS();
 
   weightQueue = xQueueCreate(WEIGHT_QUEUE_LEN, sizeof(WeightSample));
+  // Hora por WiFi ANTES del Bluetooth (no comparten la radio); solo si hace falta
+  loadWifiSettings();
+  wifiTimeSyncAtBoot();
   initBleStack();
   startTimemoreScan();
 }
@@ -95,6 +103,7 @@ void loop() {
   }
   serviceBleConnection();
   serviceAccessoryScan();   // sonda de pH y temperatura (solo en modo fermento con la Dot conectada)
+  serviceR2();               // DiFluid R2: conexión a demanda y medida de TDS
 
   // 3b. Confirmar la báscula recién conectada: guardar su MAC en NVS al llegar el primer peso válido;
   //     si en 10 s no llega ninguno y no es la báscula ya vinculada, desconectar y descartarla.
