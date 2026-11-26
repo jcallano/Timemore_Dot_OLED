@@ -1,5 +1,13 @@
 # Caja del display Timemore Dot
 
+## Impresión real
+
+<img src="impresion/timelapse_impresion.gif" width="480" alt="Timelapse de la impresión de la carcasa: las paredes de la cuña suben capa a capa, con un soporte de árbol bajo el panel inclinado y otras piezas al lado">
+
+*Timelapse de la impresión de la carcasa, acelerado ([vídeo en MP4](impresion/timelapse_impresion.mp4)). Pendiente: fotos del aparato impreso y montado.*
+
+## Diseño
+
 <img src="renders/animacion.gif" width="560" alt="Animación de la caja: giro de 360°, explosionado con la placa, el cargador y la batería, y vuelta a montar">
 
 *La caja v2 con los modelos reales de los componentes ([vídeo en MP4](renders/animacion.mp4)).*
@@ -9,10 +17,6 @@
 | <img src="renders/montado.png" width="400" alt="Caja montada: encoder a la izquierda y OLED a la derecha en el panel inclinado"> | <img src="renders/explosionado.png" width="400" alt="Vista explosionada: carcasa arriba; tapa con portapilas, WeAct ESP32-S3 y TP4056 abajo"> |
 | **Interior (sin carcasa)** | **Trasera** |
 | <img src="renders/interior.png" width="400" alt="Interior: OLED con sus pisadores, encoder, interruptor, batería 18650 y placas"> | <img src="renders/trasera.png" width="400" alt="Trasera: interruptor y USB-C de carga; lateral con los USB-C del ESP32"> |
-
-## Impresión real
-
-*Pendiente: fotos del aparato impreso y montado, y el timelapse de la impresión.*
 
 ## Archivos
 

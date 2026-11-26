@@ -33,7 +33,7 @@ Para quien quiera montar, compilar o modificar el dispositivo. El uso diario est
 >
 > El LED WS2812B de la placa consume del orden de 0.5-1 mA incluso apagado.
 
-La caja imprimible y sus scripts de FreeCAD están en [`cad/`](../cad/LEEME_caja.md).
+La caja imprimible y sus scripts de FreeCAD están en [`cad/`](../cad/README.md).
 
 ---
 
@@ -120,7 +120,7 @@ Dot --(0xFFF1, 10 Hz)--> ESP32-S3 --(0x0FFE/0xFF11, trama 03 0B de 20 bytes)--> 
 | `m` | Abrir el menú |
 | `e` | **Espresso en vivo** con la receta actual: tara, clic, 7 s de preinfusión, flujo de hasta 2 g/s, clic al llegar al punto de corte y goteo. El shot se guarda solo en RAM; al acabar se restauran el modo, el número del siguiente shot y el goteo aprendido |
 | `k` | Cambiar de modo (pour-over ↔ espresso), como *Menú → Modo* |
-| `v` | **V60 guiado en vivo** (unos 3 min): pone un server de 300 g y gira, pone el V60 con el café (140 g) y gira, gira a Bloom, vierte la receta de `d` en tiempo real con un toque de la tetera a los 20 s, gira al acabar el bloom, al acabar de verter y al acabar el drawdown, quita el V60 (yield 215 g) y gira al resumen. El peso simulado entra en la cola de muestras a 10 Hz en lugar del de la Dot y recorre todo el firmware. El pour-over se guarda solo en RAM y su traza, marcada como demo; al acabar se restauran la receta y el número del siguiente pour-over |
+| `v` | **V60 guiado en vivo** (unos 3 min): pone un vaso de 50 g y gira, echa 15,3 g de granos y quita el vaso, pone un server de 300 g y gira, pone el V60 (125 g) y gira, echa 15,1 g de café molido y gira a Bloom, vierte la receta de `d` en tiempo real con un toque de la tetera a los 20 s, gira al acabar el bloom, al acabar de verter y al acabar el drawdown, quita el V60 (yield 215 g) y gira al resumen. El peso simulado entra en la cola de muestras a 10 Hz en lugar del de la Dot y recorre todo el firmware. El pour-over se guarda solo en RAM y su traza, marcada como demo; al acabar se restauran la receta y el número del siguiente pour-over |
 | `<` / `>` / `.` | Giro del encoder hacia atrás / adelante y clic simulados |
 | `l` | **Lista de trazas** guardadas (número, pour-over, muestras, eventos, receta y fecha) |
 | `f<n>` | **Vuelca la traza n en CSV** (`[CSV] BEGIN` … `[CSV] END`); `f` sola, la última. Ver 8.3 |
@@ -172,21 +172,25 @@ La vinculación de la Dot solo acepta un dispositivo con servicio Timemore (`0xF
 
 ### 8.1 Pasos y tara en dos capas
 
-[`41_guia.ino`](../firmware/41_guia.ino): `Listo → Server → V60 → Bloom → Vertidos → Drawdown → Yield → Resumen` (`GuideStep`). **Solo el giro del encoder cambia de paso**: el peso mide y avisa, pero nunca avanza solo, porque en la encimera el montaje se toca sin querer. Una muesca es un paso; tras cada cambio se ignoran los giros durante 350 ms para que un giro rápido no salte varios. Girar hacia atrás deshace lo que hizo el paso.
+[`41_guia.ino`](../firmware/41_guia.ino): `Listo → Granos → Server → V60 → Café molido → Bloom → Vertidos → Drawdown → Yield → Resumen` (`GuideStep`; `Beans` y `Ground` van al final del enum para no cambiar el número de los pasos en las trazas ya guardadas). **Solo el giro del encoder cambia de paso**: el peso mide y avisa, pero nunca avanza solo, porque en la encimera el montaje se toca sin querer. Una muesca es un paso; tras cada cambio se ignoran los giros durante 350 ms para que un giro rápido no salte varios. Girar hacia atrás deshace lo que hizo el paso.
 
 | Paso al que se entra | Qué hace |
 | :--- | :--- |
-| Server | Guarda la tara anterior (para deshacer y para volver a Listo) y empieza la traza. En cuanto el bruto está quieto (±0,3 g durante 0,7 s; como mucho 3 s) guarda `serverRawGrams` y pone la tara ahí |
-| V60 | Igual con el V60 y el café: `dripperRawGrams` y tara. El server sigue guardado |
+| Granos | Guarda la tara anterior (para deshacer y para volver a Listo) y empieza la traza. En cuanto el bruto está quieto (±0,3 g durante 0,7 s; como mucho 3 s) guarda `cupRawGrams` (el vaso) y pone la tara ahí. Los granos son el último neto quieto entre 1 y 100 g; cuando el neto baja de −0,5 g (se quitó el vaso) quedan fijados, para que el server puesto después no cuente. 2 clics vuelven a tarar y a empezar |
+| Server | Fija los granos (`guideBeansG`, evento `granos`; 0 = no se pesaron) y, con el peso quieto, guarda `serverRawGrams` y pone la tara ahí |
+| V60 | Igual con el V60 vacío: `dripperEmptyRawGrams` y tara. El server sigue guardado |
+| Café molido | Muestra el neto (el café que se echa). Al girar, si está entre 1 y 100 g es la dosis (`guideGroundG`, evento `molido`) y tara ahí (`dripperRawGrams`); si no (el café ya estaba al tarar el V60), no toca la tara |
 | Bloom | Arma la preparación: muestras, segmentador y marcas a cero. El cronómetro arranca con el primer chorro que deja ≥ 2 g (con la hora del inicio del chorro), o con ≥ 5 g y ≥ 0,3 g/s si el chorro es muy lento |
 | Vertidos | Marca el fin del bloom: tiempo, agua y vertidos hasta ahí |
 | Drawdown | Marca el fin del vertido: tiempo y agua total |
 | Yield | Para el cronómetro y guarda el pour-over (`storePourRecord` con el agua marcada y el bloom que marcó el usuario). La bebida se mide al quitar el V60: neto < agua − 20 g, bebida = bruto − server entre el 40 % del agua y el agua + 2 g, quieta 1,5 s. Afina la retención aprendida, como antes la jarra |
 | Resumen | Guarda la traza en la flash. Girar otra vez vuelve a Listo (con la tara de antes del server) y, si hay un R2 vinculado, abre la medida de TDS de este pour-over |
 
+**Dosis:** `brewDoseGrams()` es el café molido pesado, si no los granos, si no la de la receta; de ella salen el agua objetivo, el bloom, la dosis y el ratio del registro y la de la traza. La receta guardada no cambia. **Retención del molino** = granos − café molido; `grinderRetentionAvg()` es la media de los guardados que pesaron las dos cosas (descarta |r| > 3 g) y el paso Granos la suma a la dosis de la barra.
+
 **2 clics** hacen la tara del paso actual sin perder el server; en Bloom, Vertidos o Drawdown reinician los vertidos (vuelve a Bloom armado) y en Yield o Resumen terminan (vuelta a Listo).
 
-Los tiempos que no caben en `PourOverRecord` (272 B sin hueco) van en una tabla aparte de 10 `GuideTiming` de 12 B, unida por el id, en la clave `gt1` de `tmdot_pours`: fin del bloom y fin del vertido en décimas de segundo, agua del bloom, toques descartados y peso del server. La receta se edita en el paso Listo (1 clic: dosis → ratio → bloom → guardar; el giro ajusta) y no en el menú, y se guarda al salir de la edición: `dose_g`, `pr_ratio` (agua = dosis × ratio) y `bloom_x` (agua del bloom de referencia = dosis × factor). La demostración `v` no la guarda.
+Los tiempos que no caben en `PourOverRecord` (272 B sin hueco) van en una tabla aparte de 10 `GuideTiming` de 16 B, unida por el id, en la clave `gt2` de `tmdot_pours`: fin del bloom y fin del vertido en décimas de segundo, agua del bloom, toques descartados, peso del server, granos y café molido (décimas de g, 0 = no se pesaron). La tabla anterior (`gt1`, 12 B) se lee al arrancar y se borra al guardar la nueva. La receta se edita en el paso Listo (1 clic: dosis → ratio → bloom → guardar; el giro ajusta) y no en el menú, y se guarda al salir de la edición: `dose_g`, `pr_ratio` (agua = dosis × ratio) y `bloom_x` (agua del bloom de referencia = dosis × factor). La demostración `v` no la guarda.
 
 ### 8.2 Vertidos y toques de la tetera
 
@@ -199,7 +203,7 @@ Los umbrales son una primera aproximación; las trazas (8.3) sirven para ajustar
 
 ### 8.3 Trazas
 
-[`47_trazas.ino`](../firmware/47_trazas.ino). Desde el paso Server hasta volver a Listo se graban en PSRAM **todas** las lecturas de la Dot (`TraceSample`, 12 B: ms, bruto, neto, caudal, estable; tope 6000 = 10 min) y los eventos (`TraceEvent`, 8 B: paso, tara, cronómetro, vertido, toque, yield, vista; tope 160). Al pasar a Resumen se escriben en `/trz/NNNNN.bin` (LittleFS en la partición `spiffs` de 1,5 MB; la primera vez se formatea), con una cabecera (número, pour-over, fecha, receta, server, marca de demo). Se conservan las 8 últimas; el número sigue en la NVS (`trz_seq`). Escribir una traza de 3 min tarda unos 150 ms.
+[`47_trazas.ino`](../firmware/47_trazas.ino). Desde el paso Granos hasta volver a Listo se graban en PSRAM **todas** las lecturas de la Dot (`TraceSample`, 12 B: ms, bruto, neto, caudal, estable; tope 6000 = 10 min) y los eventos (`TraceEvent`, 8 B: paso, tara, granos, café molido, cronómetro, vertido, toque, yield, vista; tope 160). Al pasar a Resumen se escriben en `/trz/NNNNN.bin` (LittleFS en la partición `spiffs` de 1,5 MB; la primera vez se formatea), con una cabecera (número, pour-over, fecha, receta, server, marca de demo). Se conservan las 8 últimas; el número sigue en la NVS (`trz_seq`). Escribir una traza de 3 min tarda unos 150 ms.
 
 **Descarga** con el display conectado por USB y el monitor serie cerrado:
 
@@ -224,7 +228,7 @@ Crea `trazas/traza_NNNN.csv` con `t_ms,bruto_g,neto_g,caudal_gps,estable` y, al 
 | `/api/handoff?ids=a,b` | `{"brews":[sobre, …]}`, cada uno ya en el formato de importación |
 | `/api/sent?ids=a,b` | Los marca como enviados (bit 0 de `BrewExtra.flags`) |
 
-**Cada café:** dosis, agua (`waterIn`), bebida medida o estimada (`beverageOut`), tiempo, ratio, molienda (`grindSize`), bloom (`bloomTime`, de `GuideTiming`) y fecha en UTC. Sin hora en el aparato, `date` va a `null` y la página pone la del móvil. La curva (`flow.weight`, decigramos de diferencia, a 2 Hz) sale de la traza a 10 Hz si sigue en la flash (8.3), entre el inicio y el fin del cronómetro; si no, de la gráfica de 120 puntos del registro. `waterDispensed` va a cero. Lo que no tiene campo (TDS, EY, vertidos, toques, caudal, bolsa, sabor) va en `note` y en `imported.params`.
+**Cada café:** dosis, agua (`waterIn`), bebida medida o estimada (`beverageOut`), tiempo, ratio, molienda (`grindSize`), bloom (`bloomTime`, de `GuideTiming`) y fecha en UTC. Sin hora en el aparato, `date` va a `null` y la página pone la del móvil. La curva (`flow.weight`, decigramos de diferencia, a 2 Hz) sale de la traza a 10 Hz si sigue en la flash (8.3), entre el inicio y el fin del cronómetro; si no, de la gráfica de 120 puntos del registro. `waterDispensed` va a cero. `doseIn` es el café molido pesado (o los granos, o la receta). Lo que no tiene campo (TDS, EY, vertidos, toques, caudal, granos y retención del molino, bolsa, sabor) va en `note` y en `imported.params` (`beans`, `ground` y `grinderRetention` si se pesaron).
 
 **La página** pone los nombres del usuario (método, tipo de método, molino y café; los guarda en `localStorage`), comprime con `CompressionStream('gzip')`, arma el enlace, marca los cafés como enviados y lo abre. Probado en Android (Chrome) con la red de casa y con la red propia.
 
