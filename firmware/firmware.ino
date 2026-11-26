@@ -567,8 +567,10 @@ static constexpr uint8_t TASTE_NONE = 0xFF;
 enum class R2State : uint8_t { Off, Scanning, Connecting, Ready, Measuring, Failed, Calibrating };
 
 // Pour-over guiado (41_guia.ino): los pasos avanzan GIRANDO el encoder, nunca por el peso (el montaje se
-// toca sin querer). Tara en dos capas: server y V60 con el café.
-enum class GuideStep : uint8_t { Ready, Server, Dripper, Bloom, Brew, Drawdown, Yield, Summary };
+// toca sin querer). Tara en dos capas: server y V60. Antes, los granos (vaso dosificador); tras el V60, el
+// café molido. Beans y Ground van al final para no cambiar el número de los pasos en las trazas guardadas:
+// el orden real es Ready, Beans, Server, Dripper, Ground, Bloom, Brew, Drawdown, Yield, Summary.
+enum class GuideStep : uint8_t { Ready, Server, Dripper, Bloom, Brew, Drawdown, Yield, Summary, Beans, Ground };
 GuideStep guideStep                      = GuideStep::Ready;
 pourseg::Segmenter pourSegmenter;                 // vertidos y toques de la tetera (src/pour_segmenter)
 float pourRatio                          = 16.0f; // receta: agua objetivo = dosis x ratio
@@ -592,8 +594,10 @@ struct GuideTiming {
   uint8_t  taps;           // toques de la tetera descartados
   uint8_t  flags;          // reservado
   uint16_t serverX10;      // peso del server, décimas de g
+  uint16_t beansX10;       // granos pesados antes de moler, décimas de g (0 = no se pesaron)
+  uint16_t groundX10;      // café molido en el V60, décimas de g (0 = no se pesó)
 };
-static_assert(sizeof(GuideTiming) == 12, "GuideTiming cambió de tamaño");
+static_assert(sizeof(GuideTiming) == 16, "GuideTiming cambió de tamaño");
 
 // Trazas a 10 Hz de cada preparación (47_trazas.ino): todas las lecturas de la Dot y los eventos, para
 // ajustar los filtros con datos reales. Se guardan en la flash (LittleFS) y se descargan por USB.
@@ -613,7 +617,7 @@ struct TraceEvent {
 };
 enum TraceEv : uint8_t {
   TE_STEP = 1, TE_TARE, TE_TIMER_START, TE_TIMER_STOP, TE_POUR_START, TE_POUR_OK, TE_POUR_MERGED, TE_TAP,
-  TE_YIELD, TE_CLICK
+  TE_YIELD, TE_CLICK, TE_BEANS, TE_GROUND
 };
 
 // Ancla para el generador de prototipos del IDE de Arduino: los prototipos automáticos de todas las

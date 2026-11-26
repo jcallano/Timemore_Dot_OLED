@@ -153,7 +153,7 @@ void renderLiveProfileOled() {
   guidePoursLabel(pours, sizeof(pours));
   fmtMinSec(el, tm, sizeof(tm));
   snprintf(hdr, sizeof(hdr), "%3.0fg 1:%4.1f %s %s", water,
-           coffeeDoseGrams > 0.1f ? water / coffeeDoseGrams : 0.0f, pours, tm);
+           water / brewDoseGrams(), pours, tm);
   oledDrawText(2, 2, hdr, 1, true);
 
   drawPourCurves(wc, fc, cols, targetH, markX);
@@ -185,7 +185,7 @@ static void renderGuideSummaryOled() {
   oledDrawText(126 - static_cast<int>(strlen(tm)) * 6, 2, tm, 1, true);
 
   const float water = waterTotalG;
-  const float dose  = rec ? rec->doseGrams : coffeeDoseGrams;
+  const float dose  = rec ? rec->doseGrams : brewDoseGrams();
   snprintf(line, sizeof(line), TR("AGUA %.0fg  1:%.1f", "WATER %.0fg  1:%.1f"), water,
            dose > 0.1f ? water / dose : 0.0f);
   oledDrawText(2, 14, line, 1);
@@ -205,8 +205,15 @@ static void renderGuideSummaryOled() {
   snprintf(line, sizeof(line), "BLOOM %s  DD %s", b, d);
   oledDrawText(2, 34, line, 1);
 
-  snprintf(line, sizeof(line), TR("CAUDAL %.1f MAX %.1f", "FLOW %.1f MAX %.1f"),
-           rec ? rec->avgFlowGps : 0.0f, rec ? rec->peakFlowGps : 0.0f);
+  // Con la dosis pesada, la dosis y la retención del molino; si no, el caudal
+  if (guideBeansG > 0.0f && guideGroundG > 0.0f)
+    snprintf(line, sizeof(line), TR("DOSIS %.1fg RET %+.1fg", "DOSE %.1fg RET %+.1fg"), guideGroundG, guideBeansG - guideGroundG);
+  else if (guideDoseG > 0.0f)
+    snprintf(line, sizeof(line), TR("DOSIS %.1fg (%s)", "DOSE %.1fg (%s)"), guideDoseG,
+             guideGroundG > 0.0f ? TR("MOLIDO", "GROUND") : TR("GRANOS", "BEANS"));
+  else
+    snprintf(line, sizeof(line), TR("CAUDAL %.1f MAX %.1f", "FLOW %.1f MAX %.1f"),
+             rec ? rec->avgFlowGps : 0.0f, rec ? rec->peakFlowGps : 0.0f);
   oledDrawText(2, 44, line, 1);
 
   oledDrawHLine(0, 53, 128, true);
@@ -233,7 +240,7 @@ void renderGuideOled() {
   oledFillRect(0, 0, 128, 11, true);
   oledDrawText(2, 2, guideStepName(guideStep), 1, true);
   if (brewStartMs != 0) fmtMinSec(brewElapsedMs(), tm, sizeof(tm));
-  else                  snprintf(tm, sizeof(tm), "%u/7", static_cast<unsigned>(guideStep));
+  else                  snprintf(tm, sizeof(tm), "%u/9", static_cast<unsigned>(guideStepNumber(guideStep)));
   if (!scaleConnected && !demoLiveActive) snprintf(tm, sizeof(tm), "%s", TR("SIN DOT", "NO DOT"));
   oledDrawText(126 - static_cast<int>(strlen(tm)) * 6, 2, tm, 1, true);
 
@@ -241,6 +248,8 @@ void renderGuideOled() {
   float w = currentWeightGrams;
   if (guideStep == GuideStep::Yield && yieldMeasured)       w = yieldGrams;
   else if (guideStep == GuideStep::Yield && guideV60Removed()) w = rawWeightGrams - serverRawGrams;
+  // Granos: con el vaso fuera (a moler), los granos que se pesaron
+  else if (guideStep == GuideStep::Beans && guideBeansLocked) w = guideBeansCandidate;
   if (fabsf(w) < 0.05f) w = 0.0f;
   snprintf(buf, sizeof(buf), "%5.1f", w);
   oledDrawText(4, 14, buf, 3);
@@ -267,17 +276,46 @@ void renderGuideOled() {
                                : TR("CLIC:RECETA  GIRA >", "CLICK:RECIPE TURN >");
       break;
     }
+    case GuideStep::Beans: {
+      // Tara con el vaso; barra hacia la dosis más la retención media del molino
+      float ret = 0.0f;
+      const uint8_t nRet = grinderRetentionAvg(&ret);
+      if (guidePendingTare)  a = TR("ESPERA PESO QUIETO...", "HOLD STILL...");
+      else if (guideBeansLocked) a = TR("A MOLER 2CLIC:REPETIR", "GRIND  2CLICK:REDO");
+      else if (nRet)         snprintf(lineA, sizeof(lineA), TR("RETENCION MEDIA %+.1fg", "AVG RETENTION %+.1fg"), ret);
+      else                   snprintf(lineA, sizeof(lineA), TR("VASO %.1fg", "CUP %.1fg"), cupRawGrams - guidePrevTareOffset);
+      const float bt = beansTargetGrams();
+      const float shown = guideBeansLocked ? guideBeansCandidate : currentWeightGrams;
+      snprintf(buf, sizeof(buf), "%.1fg", bt);
+      drawGuideBar(48, shown, bt, buf);
+      c = TR("PESA LOS GRANOS GIRA>", "WEIGH BEANS  TURN >");
+      break;
+    }
     case GuideStep::Server:
       if (guidePendingTare) a = TR("ESPERA PESO QUIETO...", "HOLD STILL...");
       else snprintf(lineA, sizeof(lineA), "SERVER %.1fg", serverRawGrams);
-      c = TR("PON V60+CAFE GIRA >", "ADD V60+COFFEE TURN>");
+      if (guideBeansG > 0.0f) snprintf(lineB, sizeof(lineB), TR("GRANOS %.1fg", "BEANS %.1fg"), guideBeansG);
+      c = TR("PON EL V60  GIRA >", "ADD THE V60  TURN >");
       break;
     case GuideStep::Dripper:
       if (guidePendingTare) a = TR("ESPERA PESO QUIETO...", "HOLD STILL...");
-      else snprintf(lineA, sizeof(lineA), TR("V60+CAFE %.1fg", "V60+COFFEE %.1fg"), dripperRawGrams - serverRawGrams);
-      snprintf(lineB, sizeof(lineB), "%.1fg 1:%.1f > %.0fg", coffeeDoseGrams, pourRatio, target);
+      else snprintf(lineA, sizeof(lineA), "V60 %.1fg", dripperEmptyRawGrams - serverRawGrams);
+      snprintf(lineB, sizeof(lineB), "%.1fg 1:%.1f > %.0fg", brewDoseGrams(), pourRatio, target);
+      c = TR("GIRA > CAFE MOLIDO", "TURN > GROUND COFFEE");
+      break;
+    case GuideStep::Ground: {
+      // El café molido que entra en el V60; con los granos pesados, la retención del molino en vivo
+      const float net = currentWeightGrams;
+      if (guideBeansG > 0.0f && net >= 1.0f)
+        snprintf(lineA, sizeof(lineA), TR("GRANOS %.1f RET %+.1f", "BEANS %.1f RET %+.1f"), guideBeansG, guideBeansG - net);
+      else
+        a = TR("ECHA EL CAFE MOLIDO", "ADD THE GROUND COFFEE");
+      const float dt = guideBeansG > 0.0f ? guideBeansG : coffeeDoseGrams;
+      snprintf(buf, sizeof(buf), "%.1fg", dt);
+      drawGuideBar(48, net, dt, buf);
       c = TR("GIRA > BLOOM", "TURN > BLOOM");
       break;
+    }
     case GuideStep::Bloom: {
       // Caudal mientras se vierte; en la espera del bloom, el tiempo de espera
       if (brewStartMs == 0) {
@@ -306,7 +344,7 @@ void renderGuideOled() {
     }
     case GuideStep::Drawdown:
       snprintf(lineA, sizeof(lineA), TR("AGUA %.1fg 1:%.1f", "WATER %.1fg 1:%.1f"), waterTotalG,
-               coffeeDoseGrams > 0.1f ? waterTotalG / coffeeDoseGrams : 0.0f);
+               waterTotalG / brewDoseGrams());
       if (brewStartMs != 0 && pourEndMs != 0) {
         fmtMinSec(brewElapsedMs() - pourEndMs, tm, sizeof(tm));
         snprintf(lineB, sizeof(lineB), "DRAWDOWN %s", tm);

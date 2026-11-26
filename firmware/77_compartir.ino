@@ -198,6 +198,11 @@ static void shareAppendEnvelope(String& o, const PourOverRecord& r) {
   else            add(TR(" | %u vertidos", " | %u pours"), (unsigned)r.poursCount);
   if (gt && gt->taps) add(TR(" (%u toques descartados)", " (%u taps ignored)"), (unsigned)gt->taps);
   add(TR(" | caudal medio %.1f g/s, max %.1f g/s", " | flow avg %.1f g/s, max %.1f g/s"), r.avgFlowGps, r.peakFlowGps);
+  if (gt && gt->beansX10) {
+    add(TR(" | granos %.1f g", " | beans %.1f g"), gt->beansX10 / 10.0f);
+    if (gt->groundX10) add(TR(", retencion del molino %.1f g", ", grinder retention %.1f g"),
+                           (static_cast<int>(gt->beansX10) - static_cast<int>(gt->groundX10)) / 10.0f);
+  }
   if (!bevMeasured) add(TR(" | bebida estimada", " | beverage estimated"));
   if (ex && ex->bagId) add(TR(" | bolsa #%u", " | bag #%u"), (unsigned)ex->bagId);
   if (hasTaste) {
@@ -227,6 +232,12 @@ static void shareAppendEnvelope(String& o, const PourOverRecord& r) {
   jsonStr(o, shareDevice);
   o += F(",\"schema\":1,\"params\":{\"pourId\":");  o += String(r.pourId);
   if (hasTds) { o += F(",\"tds\":"); jsonNum(o, tdsV, 2); o += F(",\"ey\":"); jsonNum(o, ey, 1); }
+  if (gt && gt->beansX10)  { o += F(",\"beans\":");  jsonNum(o, gt->beansX10 / 10.0f, 1); }
+  if (gt && gt->groundX10) { o += F(",\"ground\":"); jsonNum(o, gt->groundX10 / 10.0f, 1); }
+  if (gt && gt->beansX10 && gt->groundX10) {
+    o += F(",\"grinderRetention\":");
+    jsonNum(o, (static_cast<int>(gt->beansX10) - static_cast<int>(gt->groundX10)) / 10.0f, 1);
+  }
   o += F(",\"beverageMeasured\":"); o += bevMeasured ? F("true") : F("false");
   o += F(",\"trace\":");            o += fl.full ? F("true") : F("false");
   o += F("}}}");

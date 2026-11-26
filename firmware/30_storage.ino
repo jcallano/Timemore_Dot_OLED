@@ -246,9 +246,9 @@ bool storePourRecord(unsigned long totalElapsedMs, bool persistToNvs) {
   rec.pourId           = overwriteSameRecording ? activeRecordingPourId : nextPourSequenceId++;
   activeRecordingPourId = rec.pourId;
   rec.durationSec      = durSec;
-  rec.doseGrams        = coffeeDoseGrams;
+  rec.doseGrams        = brewDoseGrams();   // la medida en el pour-over guiado, o la de la receta
   rec.finalWeightGrams = finalW;
-  rec.finalRatio       = (coffeeDoseGrams > 0.1f) ? (finalW / coffeeDoseGrams) : 0.0f;
+  rec.finalRatio       = (rec.doseGrams > 0.1f) ? (finalW / rec.doseGrams) : 0.0f;
   rec.avgFlowGps       = (durSec > 0) ? (finalW / static_cast<float>(durSec)) : 0.0f;
   rec.peakFlowGps      = peakFlowRateGps;
   rec.poursCount       = (currentPourPulsesCount > 0) ? currentPourPulsesCount : 1;
@@ -391,8 +391,9 @@ void injectDemoPourOver() {
 
 // ----------------------------------------------------------------------------
 // DEMOSTRACIÓN EN VIVO DE UN V60 GUIADO (orden serie 'v'), para grabar la pantalla y probar sin agua.
-// Hace lo mismo que una persona con el pour-over guiado (41_guia.ino): pone el server (300 g) y gira,
-// pone el V60 con el café (140 g) y gira, gira a Bloom, vierte la receta de demoPourWeightAt() en tiempo
+// Hace lo mismo que una persona con el pour-over guiado (41_guia.ino): pone el vaso (50 g) y gira, echa
+// 15,3 g de granos y quita el vaso (a moler), pone el server (300 g) y gira, pone el V60 (125 g) y gira,
+// echa 15,1 g de café molido (retención 0,2 g) y gira a Bloom, vierte la receta de demoPourWeightAt() en tiempo
 // real con un toque de la tetera a los 20 s, gira al acabar el bloom, al acabar de verter y al acabar el
 // drawdown, quita el V60 (queda el server con 215 g de bebida) y gira al resumen. El peso simulado entra en
 // la cola de muestras a 10 Hz, como el de la Dot, y recorre el mismo camino. Mientras dura se ignora el peso
@@ -401,9 +402,9 @@ void injectDemoPourOver() {
 // ----------------------------------------------------------------------------
 void registerUserOrScaleActivity();   // 60_power
 
-static constexpr float DEMO_LEAD_SEC  = 9.0f;     // antes del primer vertido: server, V60, bloom armado
+static constexpr float DEMO_LEAD_SEC  = 17.0f;    // antes del primer vertido: granos, server, V60, café, bloom
 static constexpr float DEMO_END_SEC   = 173.0f;   // fin de la demostración (en el resumen)
-static const float demoTurnAt[]       = {-6.5f, -3.5f, -1.5f, 30.0f, 120.0f, 160.0f, 168.0f};
+static const float demoTurnAt[]       = {-15.0f, -8.5f, -6.5f, -5.0f, -1.5f, 30.0f, 120.0f, 160.0f, 168.0f};
 static uint8_t demoTurnIdx            = 0;
 static unsigned long demoStartMs      = 0;
 static unsigned long demoLastSampleMs = 0;
@@ -417,9 +418,15 @@ static bool demoV60Running            = false;
 // Peso bruto de la Dot en el segundo t desde el primer vertido
 static float demoGrossAt(float t) {
   float g = demoBaseGross;
-  if (t >= -8.0f) g += 300.0f;                       // server
+  if (t >= -16.0f && t < -10.5f) {                   // vaso dosificador y granos (luego, a moler)
+    g += 50.0f;
+    if (t >= -13.5f) g += 15.3f;
+    return roundf(g * 10.0f) / 10.0f;
+  }
+  if (t >= -9.5f) g += 300.0f;                       // server
   if (t >= 163.0f) return g + 215.0f;                // V60 fuera: el server con la bebida
-  if (t >= -5.0f) g += 140.0f;                       // V60 con el café
+  if (t >= -7.5f) g += 125.0f;                       // V60 con el filtro enjuagado
+  if (t >= -4.0f) g += 15.1f;                        // café molido
   g += demoPourWeightAt(t);
   if (t >= 20.0f && t < 20.3f) g += 12.0f;           // toque de la tetera durante la espera del bloom
   return roundf(g * 10.0f) / 10.0f;
@@ -447,7 +454,7 @@ void startDemoLivePour() {
   demoStartMs        = millis();
   demoLastSampleMs   = 0;
   registerUserOrScaleActivity();
-  Serial.println("[DEMO] V60 guiado: server, V60, bloom de 45 g (30 s), 3 vertidos hasta 250 g, yield 215 g.");
+  Serial.println("[DEMO] V60 guiado: granos 15.3 g, server, V60, cafe 15.1 g, bloom de 45 g (30 s), 3 vertidos hasta 250 g, yield 215 g.");
 }
 
 void serviceDemoLivePour() {

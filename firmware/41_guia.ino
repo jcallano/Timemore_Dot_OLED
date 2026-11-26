@@ -1,12 +1,17 @@
 // ============================================================================
 // POUR-OVER GUIADO
-//   Listo -> Server -> V60 -> Bloom -> Vertidos -> Drawdown -> Yield -> Resumen
+//   Listo -> Granos -> Server -> V60 -> Café -> Bloom -> Vertidos -> Drawdown -> Yield -> Resumen
 // Los pasos avanzan GIRANDO el encoder y se deshacen girando hacia atrás. El peso nunca cambia de paso
 // por su cuenta (el montaje se toca sin querer): solo mide y avisa.
 //
 // Tara en dos capas, con la tara por software de siempre (softwareTareOffset):
+//   - Granos: tara con el vaso dosificador; los granos son el último peso quieto (se puede quitar el vaso
+//     para moler antes de girar). Sin granos, el paso se salta girando.
 //   - Server: se guarda su peso bruto (serverRawGrams) y la pantalla pasa a 0.
-//   - V60: se vuelve a poner a 0 con el V60 y el café encima (dripperRawGrams).
+//   - V60: se vuelve a poner a 0 con el V60 (dripperEmptyRawGrams), con el filtro ya enjuagado.
+//   - Café: el café molido que se echa en el V60. Al girar es la dosis real (el agua objetivo y el bloom
+//     se recalculan con ella) y vuelve a tarar (dripperRawGrams). Granos - café = retención del molino.
+//     Si el café ya estaba en el V60 al tarar, marca 0 y la dosis es la de los granos o la de la receta.
 //   - Yield: al quitar el V60, la bebida es el bruto de la Dot menos el server.
 // El cronómetro arranca solo con el primer chorro que deja agua (no con un toque de la tetera) y para al
 // pasar a Yield, que es cuando se guarda el pour-over.
@@ -22,6 +27,13 @@ static constexpr uint32_t GUIDE_COMMIT_MAX_MS = 3000;   // tara pendiente: se fi
 float guidePrevTareOffset   = 0.0f;   // tara de antes del server (para deshacer y para volver a Listo)
 float serverRawGrams        = 0.0f;   // bruto con el server vacío
 float dripperRawGrams       = 0.0f;   // bruto con server + V60 + café
+float dripperEmptyRawGrams  = 0.0f;   // bruto con server + V60 sin el café
+float cupRawGrams           = 0.0f;   // bruto con el vaso dosificador vacío
+float guideBeansG           = 0.0f;   // granos pesados en este café (0 = no se pesaron)
+float guideGroundG          = 0.0f;   // café molido pesado en el V60 (0 = no se pesó)
+float guideDoseG            = 0.0f;   // dosis medida de este café (0 = la de la receta)
+float guideBeansCandidate   = 0.0f;   // último peso quieto de los granos en el paso Granos
+bool guideBeansLocked       = false;  // el vaso ya se quitó: los granos no cambian
 bool guidePendingTare       = false;  // Server o V60 esperan peso estable para fijar su tara
 unsigned long guidePendingSinceMs = 0;
 unsigned long brewStartMs   = 0;      // inicio del cronómetro (0 = aún no ha caído agua)
@@ -46,8 +58,34 @@ static GuideTiming guideTimings[MAX_SAVED_POURS];
 // ---------------------------------------------------------------------------
 // Datos derivados (también los usan la pantalla y el LED)
 // ---------------------------------------------------------------------------
-float targetWaterGrams()  { return coffeeDoseGrams * pourRatio; }
-float bloomTargetGrams()  { return coffeeDoseGrams * bloomFactor; }
+// Dosis de este café: la medida (café molido o, si no, granos) o la de la receta
+float brewDoseGrams()     { return guideDoseG > 0.1f ? guideDoseG : coffeeDoseGrams; }
+float targetWaterGrams()  { return brewDoseGrams() * pourRatio; }
+float bloomTargetGrams()  { return brewDoseGrams() * bloomFactor; }
+
+// Retención media del molino (granos - café molido) en los pour-overs guardados que pesaron las dos cosas.
+// Devuelve cuántos hay (0 = ninguno; *avg sin tocar).
+uint8_t grinderRetentionAvg(float* avg) {
+  float s = 0.0f;
+  uint8_t n = 0;
+  for (uint8_t i = 0; i < MAX_SAVED_POURS; i++) {
+    const GuideTiming& g = guideTimings[i];
+    if (g.id == 0 || g.beansX10 == 0 || g.groundX10 == 0) continue;
+    const float r = (static_cast<int>(g.beansX10) - static_cast<int>(g.groundX10)) / 10.0f;
+    if (fabsf(r) > 3.0f) continue;   // otro café o un error al pesar, no retención
+    s += r;
+    n++;
+  }
+  if (n && avg) *avg = s / n;
+  return n;
+}
+
+// Granos objetivo: la dosis de la receta más lo que suele quedarse en el molino
+float beansTargetGrams() {
+  float r = 0.0f;
+  if (grinderRetentionAvg(&r) && r > 0.0f) return coffeeDoseGrams + r;
+  return coffeeDoseGrams;
+}
 bool guideBrewStarted()   { return brewStartMs != 0; }
 
 uint32_t brewElapsedMs() {
@@ -83,8 +121,10 @@ uint8_t guideLedLevel() {
 const char* guideStepName(GuideStep s) {
   switch (s) {
     case GuideStep::Ready:    return TR("LISTO", "READY");
+    case GuideStep::Beans:    return TR("GRANOS", "BEANS");
     case GuideStep::Server:   return "SERVER";
-    case GuideStep::Dripper:  return TR("V60 + CAFE", "V60 + COFFEE");
+    case GuideStep::Dripper:  return "V60";
+    case GuideStep::Ground:   return TR("CAFE MOLIDO", "GROUND COFFEE");
     case GuideStep::Bloom:    return "BLOOM";
     case GuideStep::Brew:     return TR("VERTIDOS", "BREW");
     case GuideStep::Drawdown: return "DRAWDOWN";
@@ -94,14 +134,49 @@ const char* guideStepName(GuideStep s) {
   return "";
 }
 
+// Número del paso en pantalla (1..9; Listo = 0)
+uint8_t guideStepNumber(GuideStep s) {
+  switch (s) {
+    case GuideStep::Ready:    return 0;
+    case GuideStep::Beans:    return 1;
+    case GuideStep::Server:   return 2;
+    case GuideStep::Dripper:  return 3;
+    case GuideStep::Ground:   return 4;
+    case GuideStep::Bloom:    return 5;
+    case GuideStep::Brew:     return 6;
+    case GuideStep::Drawdown: return 7;
+    case GuideStep::Yield:    return 8;
+    case GuideStep::Summary:  return 9;
+  }
+  return 0;
+}
+
 // ---------------------------------------------------------------------------
-// Tiempos de cada pour-over en la NVS (bloom, fin de vertido, toques, server)
+// Tiempos de cada pour-over en la NVS (bloom, fin de vertido, toques, server, granos y café molido)
 // ---------------------------------------------------------------------------
 void loadGuideTimings() {
   memset(guideTimings, 0, sizeof(guideTimings));
   Preferences p;
   p.begin(NVS_POUR_NAMESPACE, true);
-  if (p.getBytesLength("gt1") == sizeof(guideTimings)) p.getBytes("gt1", guideTimings, sizeof(guideTimings));
+  if (p.getBytesLength("gt2") == sizeof(guideTimings)) {
+    p.getBytes("gt2", guideTimings, sizeof(guideTimings));
+  } else {
+    // Tabla anterior (12 B por café, sin granos ni café molido): se lee y se pasa a la nueva al guardar
+    struct GuideTimingV1 { uint16_t id, bloomEndDs, pourEndDs, bloomWaterX10; uint8_t taps, flags; uint16_t serverX10; };
+    static_assert(sizeof(GuideTimingV1) == 12, "GuideTimingV1");
+    GuideTimingV1 old[MAX_SAVED_POURS];
+    if (p.getBytesLength("gt1") == sizeof(old) && p.getBytes("gt1", old, sizeof(old)) == sizeof(old)) {
+      for (uint8_t i = 0; i < MAX_SAVED_POURS; i++) {
+        guideTimings[i].id            = old[i].id;
+        guideTimings[i].bloomEndDs    = old[i].bloomEndDs;
+        guideTimings[i].pourEndDs     = old[i].pourEndDs;
+        guideTimings[i].bloomWaterX10 = old[i].bloomWaterX10;
+        guideTimings[i].taps          = old[i].taps;
+        guideTimings[i].flags         = old[i].flags;
+        guideTimings[i].serverX10     = old[i].serverX10;
+      }
+    }
+  }
   pourRatio   = p.getFloat("pr_ratio", 16.0f);
   bloomFactor = p.getFloat("bloom_x", 2.0f);
   p.end();
@@ -141,9 +216,12 @@ static void storeGuideTiming(uint16_t id) {
   g.bloomWaterX10 = static_cast<uint16_t>(lroundf(bloomWaterG * 10.0f));
   g.taps          = pourSegmenter.taps();
   g.serverX10     = static_cast<uint16_t>(constrain(lroundf(serverRawGrams * 10.0f), 0L, 65535L));
+  g.beansX10      = static_cast<uint16_t>(constrain(lroundf(guideBeansG * 10.0f), 0L, 65535L));
+  g.groundX10     = static_cast<uint16_t>(constrain(lroundf(guideGroundG * 10.0f), 0L, 65535L));
   Preferences p;
   p.begin(NVS_POUR_NAMESPACE, false);
-  p.putBytes("gt1", guideTimings, sizeof(guideTimings));
+  p.putBytes("gt2", guideTimings, sizeof(guideTimings));
+  if (p.isKey("gt1")) p.remove("gt1");
   p.end();
 }
 
@@ -231,7 +309,16 @@ static void guideStopAndSave(unsigned long now) {
   if (ok) storeGuideTiming(guidePourId);
 }
 
-// Vuelta a Listo: la tara de antes del server; el pour-over terminado queda en el historial
+// Dosis medida de este café: ninguna (vuelve la de la receta)
+static void guideClearDose() {
+  guideBeansG         = 0.0f;
+  guideGroundG        = 0.0f;
+  guideDoseG          = 0.0f;
+  guideBeansCandidate = 0.0f;
+  guideBeansLocked    = false;
+}
+
+// Vuelta a Listo: la tara de antes de empezar; el pour-over terminado queda en el historial
 static void guideFinish() {
   guidePendingTare = false;
   setTareOffset(guidePrevTareOffset);
@@ -239,10 +326,12 @@ static void guideFinish() {
   timerRunning       = false;
   timerAccumulatedMs = 0;
   guideResetBrewMarks();
+  guideClearDose();
 }
 
 // A Listo sin tocar la tara (demostración 'v')
 void guideReset() {
+  guideClearDose();
   guidePendingTare   = false;
   traceStop();
   timerRunning       = false;
@@ -317,20 +406,52 @@ bool guideRotate(int dir) {
       case GuideStep::Ready:
         guideRecipeDone();
         guidePrevTareOffset = softwareTareOffset;
+        guideClearDose();
         traceBegin();
-        guideStartPendingTare();          // el server: su peso se fija al estar quieto
+        guideStartPendingTare();          // el vaso dosificador: su peso se fija al estar quieto
+        guideGoTo(GuideStep::Beans);
+        break;
+      case GuideStep::Beans:
+        if (guidePendingTare) return false;
+        guideBeansG = guideBeansCandidate;   // 0 = no se pesaron
+        guideDoseG  = guideBeansG;
+        if (guideBeansG > 0.0f) {
+          traceEvent(TE_BEANS, 0, guideBeansG);
+          Serial.printf("[GUIA] Granos: %.1f g.\n", guideBeansG);
+        }
+        guideStartPendingTare();          // el server
         guideGoTo(GuideStep::Server);
         break;
       case GuideStep::Server:
         if (guidePendingTare) return false;
-        guideStartPendingTare();          // V60 con el café
+        guideStartPendingTare();          // el V60 (sin el café)
         guideGoTo(GuideStep::Dripper);
         break;
       case GuideStep::Dripper:
         if (guidePendingTare) return false;
+        guideGoTo(GuideStep::Ground);
+        break;
+      case GuideStep::Ground: {
+        // El café que hay en el V60 es la dosis real; vuelve a tarar para el bloom
+        const float raw = rawWeightGrams;
+        const float net = raw - dripperEmptyRawGrams;
+        if (net >= 1.0f && net <= 100.0f) {
+          guideGroundG    = net;
+          guideDoseG      = net;
+          dripperRawGrams = raw;
+          setTareOffset(raw);
+          traceEvent(TE_GROUND, 0, net);
+          if (guideBeansG > 0.0f) Serial.printf("[GUIA] Cafe molido: %.1f g (retencion %+.1f g).\n", net, guideBeansG - net);
+          else                    Serial.printf("[GUIA] Cafe molido: %.1f g.\n", net);
+        } else {
+          guideGroundG    = 0.0f;         // el café ya estaba en el V60 al tarar
+          guideDoseG      = guideBeansG;
+          dripperRawGrams = dripperEmptyRawGrams;
+        }
         guideArmBrew();
         guideGoTo(GuideStep::Bloom);
         break;
+      }
       case GuideStep::Bloom:
         if (brewStartMs != 0) {
           bloomEndMs      = brewElapsedMs();
@@ -367,20 +488,35 @@ bool guideRotate(int dir) {
   switch (guideStep) {
     case GuideStep::Ready:
       break;
-    case GuideStep::Server:
+    case GuideStep::Beans:
       guidePendingTare = false;
       setTareOffset(guidePrevTareOffset);
       traceStop();
+      guideClearDose();
       guideGoTo(GuideStep::Ready);
+      break;
+    case GuideStep::Server:
+      guidePendingTare = false;
+      setTareOffset(cupRawGrams);         // los granos que se pesaron siguen como candidatos
+      guideBeansG = 0.0f;
+      guideDoseG  = 0.0f;
+      guideGoTo(GuideStep::Beans);
       break;
     case GuideStep::Dripper:
       guidePendingTare = false;
       setTareOffset(serverRawGrams);
       guideGoTo(GuideStep::Server);
       break;
+    case GuideStep::Ground:
+      setTareOffset(dripperEmptyRawGrams);
+      guideGoTo(GuideStep::Dripper);
+      break;
     case GuideStep::Bloom:
       guideCancelBrew();
-      guideGoTo(GuideStep::Dripper);
+      setTareOffset(dripperEmptyRawGrams);   // el café vuelve a verse
+      guideGroundG = 0.0f;
+      guideDoseG   = guideBeansG;
+      guideGoTo(GuideStep::Ground);
       break;
     case GuideStep::Brew:
       bloomEndMs = 0;
@@ -416,12 +552,20 @@ void guideTare() {
     case GuideStep::Ready:
       setTareOffset(raw);
       break;
+    case GuideStep::Beans:
+      cupRawGrams         = raw;
+      guideBeansCandidate = 0.0f;
+      guideBeansLocked    = false;
+      setTareOffset(raw);
+      break;
     case GuideStep::Server:
       serverRawGrams = raw;
       setTareOffset(raw);
       break;
     case GuideStep::Dripper:
-      dripperRawGrams = raw;
+    case GuideStep::Ground:               // el V60 otra vez a 0 (sin el café)
+      dripperEmptyRawGrams = raw;
+      dripperRawGrams      = raw;
       setTareOffset(raw);
       break;
     case GuideStep::Bloom:
@@ -508,14 +652,30 @@ void serviceGuide(unsigned long now) {
     if (still || timeout) {
       guidePendingTare = false;
       const float raw = rawWeightGrams;
-      if (guideStep == GuideStep::Server) {
+      if (guideStep == GuideStep::Beans) {
+        cupRawGrams = raw;
+        Serial.printf("[GUIA] Vaso: %.1f g (bruto).\n", raw);
+      } else if (guideStep == GuideStep::Server) {
         serverRawGrams = raw;
         Serial.printf("[GUIA] Server: %.1f g (bruto).\n", raw);
       } else if (guideStep == GuideStep::Dripper) {
-        dripperRawGrams = raw;
-        Serial.printf("[GUIA] V60 + cafe: %.1f g.\n", raw - serverRawGrams);
+        dripperEmptyRawGrams = raw;
+        dripperRawGrams      = raw;
+        Serial.printf("[GUIA] V60: %.1f g.\n", raw - serverRawGrams);
       }
       setTareOffset(raw);
+      uiNeedsImmediateRedraw = true;
+    }
+  }
+
+  // Granos: el último peso quieto con algo en el vaso. Al quitar el vaso (para moler) quedan fijados: lo
+  // que se ponga después (el server) ya no son granos. 2 clics vuelven a empezar.
+  if (guideStep == GuideStep::Beans && !guidePendingTare) {
+    const float net = rawWeightGrams - softwareTareOffset;
+    if (guideBeansCandidate > 0.0f && net < -0.5f) guideBeansLocked = true;
+    if (!guideBeansLocked && guideStableForMs() >= GUIDE_STABLE_MS &&
+        net >= 1.0f && net <= 100.0f && fabsf(net - guideBeansCandidate) >= 0.05f) {
+      guideBeansCandidate    = roundf(net * 10.0f) / 10.0f;
       uiNeedsImmediateRedraw = true;
     }
   }
@@ -534,7 +694,7 @@ void serviceGuide(unsigned long now) {
       yieldGrams    = bev;
       yieldMeasured = true;
       traceEvent(TE_YIELD, 0, bev);
-      if (guidePourId != 0 && !demoLiveActive) storeMeasuredBeverage(guidePourId, bev, water, coffeeDoseGrams);
+      if (guidePourId != 0 && !demoLiveActive) storeMeasuredBeverage(guidePourId, bev, water, brewDoseGrams());
       Serial.printf("[GUIA] Yield: %.1f g (agua %.1f g).\n", bev, water);
       uiNeedsImmediateRedraw = true;
     }

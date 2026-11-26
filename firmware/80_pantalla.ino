@@ -62,7 +62,15 @@ void renderPourOverViewerOled() {
   } else {
     // PÁGINA B: FICHA DETALLADA DEL POUR-OVER (Peso, Dosis, Ratio, Caudal Medio/Pico, Vertidos)
     char line1[32], line2[32], line3[32], line4[32];
-    snprintf(line1, sizeof(line1), TR("AGUA/BEBIDA: %5.1f g", "WATER: %5.1f g"), rec.finalWeightGrams);
+    // Con los granos pesados, granos y retención del molino (el agua ya va en la cabecera)
+    const GuideTiming* gt = findGuideTiming(rec.pourId);
+    if (gt && gt->beansX10 && gt->groundX10)
+      snprintf(line1, sizeof(line1), TR("GRANOS %.1fg RET%+.1f", "BEANS %.1fg RET %+.1f"), gt->beansX10 / 10.0f,
+               (static_cast<int>(gt->beansX10) - static_cast<int>(gt->groundX10)) / 10.0f);
+    else if (gt && gt->beansX10)
+      snprintf(line1, sizeof(line1), TR("GRANOS %.1fg", "BEANS %.1fg"), gt->beansX10 / 10.0f);
+    else
+      snprintf(line1, sizeof(line1), TR("AGUA/BEBIDA: %5.1f g", "WATER: %5.1f g"), rec.finalWeightGrams);
     snprintf(line2, sizeof(line2), TR("DOSIS:%4.1fg -> 1:%4.1f", "DOSE:%4.1fg -> 1:%4.1f"), rec.doseGrams, rec.finalRatio);
     snprintf(line3, sizeof(line3), TR("FLOW MED:%3.1f MAX:%3.1f", "FLOW AVG:%3.1f MAX:%3.1f"), rec.avgFlowGps, rec.peakFlowGps);
     // <= 21 caracteres (128 px)

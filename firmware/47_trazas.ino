@@ -137,7 +137,7 @@ uint32_t traceSave(uint16_t pourId) {
   h.epoch       = nowEpochOrZero();
   h.nSamples    = traceCount;
   h.nEvents     = traceEventCount;
-  h.dose        = coffeeDoseGrams;
+  h.dose        = brewDoseGrams();
   h.ratio       = pourRatio;
   h.bloomFactor = bloomFactor;
   h.serverRaw   = serverRawGrams;
@@ -192,6 +192,8 @@ static const char* traceEventName(uint8_t type) {
     case TE_TAP:         return "toque";
     case TE_YIELD:       return "yield";
     case TE_CLICK:       return "vista";
+    case TE_BEANS:       return "granos";
+    case TE_GROUND:      return "molido";
   }
   return "?";
 }
