@@ -51,6 +51,7 @@ void clearScaleFromNVS() {
   preferences.end();
   memset(savedTimemoreMac, 0, sizeof(savedTimemoreMac));
   hasSavedMac = false;
+  clearRejectedMacs();   // una Dot que antes no mandó peso vuelve a ser candidata
   Serial.println("[NVS] Memoria NVS borrada. Buscando cualquier Timemore Dot...");
 
   for (int i = 0; i < 4; i++) {
@@ -71,12 +72,9 @@ static const char* NVS_POUR_NAMESPACE = "tmdot_pours";
 
 void resetLivePourRecording() {
   activeRecordingPourId  = 0;
-  brewMaxWeightGrams     = 0.0f;
-  autoStopSinceMs        = 0;
   liveSampleCount        = 0;
   lastLiveSampleMs       = 0;
   currentPourPulsesCount = 0;
-  wasPouringActive       = false;
   peakFlowRateGps        = 0.0f;
 }
 
@@ -201,15 +199,7 @@ void saveLanguageToNVS() {
   p.end();
 }
 
-void saveDoseToNVS() {
-  Preferences pourPrefs;
-  pourPrefs.begin(NVS_POUR_NAMESPACE, false);
-  pourPrefs.putFloat("dose_g", coffeeDoseGrams);
-  pourPrefs.end();
-}
-
 bool storePourRecord(unsigned long totalElapsedMs, bool persistToNvs);
-void armBeverageCapture(uint16_t pourId, float waterG, float doseG);  // 46_extraccion.ino
 void recordBrewContext(bool shot, uint16_t id);                       // 46_extraccion.ino
 
 bool finalizeAndSaveCurrentPourOver(unsigned long totalElapsedMs) {
@@ -225,6 +215,7 @@ bool storePourRecord(unsigned long totalElapsedMs, bool persistToNvs) {
   if (liveSampleCount > 0 && psramLiveSamples[liveSampleCount - 1].weightGrams > finalW) {
     finalW = psramLiveSamples[liveSampleCount - 1].weightGrams;
   }
+  if (recordWaterOverride > 0.0f) finalW = recordWaterOverride;   // pour-over guiado: el agua marcada
 
   // Requerir al menos 4 segundos y 5.0 g para considerar una extracción válida
   if (durSec < 4 || finalW < 5.0f || liveSampleCount < 2) {
@@ -265,7 +256,9 @@ bool storePourRecord(unsigned long totalElapsedMs, bool persistToNvs) {
   // Bloom: el primer vertido es pequeño (<= 35 % del total) y le sigue una espera de 15 s o más antes
   // del siguiente. Se busca en las muestras a 2 Hz con los mismos umbrales que el contador de vertidos
   // (empieza con >= 0.8 g/s, termina con <= 0.25 g/s).
-  if (rec.poursCount >= 2) {
+  if (recordBloomOverride >= 0) {
+    rec.hasBloom = static_cast<uint8_t>(recordBloomOverride);     // pour-over guiado: lo marcó el usuario
+  } else if (rec.poursCount >= 2) {
     uint16_t i = 0;
     while (i < liveSampleCount && psramLiveSamples[i].flowGps < 0.8f) i++;    // empieza el 1.er vertido
     while (i < liveSampleCount && psramLiveSamples[i].flowGps > 0.25f) i++;   // termina
@@ -280,9 +273,10 @@ bool storePourRecord(unsigned long totalElapsedMs, bool persistToNvs) {
     }
   }
 
-  // Normalizar las N muestras de PSRAM a las 120 columnas de la pantalla OLED (altura 0..38 px)
+  // Normalizar las N muestras de PSRAM a las 120 columnas de la pantalla OLED (altura 0..38 px).
+  // El caudal va en escala fija (POUR_GRAPH_MAX_GPS), la misma que el perfil en vivo, para poder comparar.
   float maxW = (finalW > 10.0f) ? finalW : 10.0f;
-  float maxF = (peakFlowRateGps > 2.0f) ? peakFlowRateGps : 5.0f;
+  float maxF = POUR_GRAPH_MAX_GPS;
 
   for (uint8_t x = 0; x < POUR_GRAPH_POINTS; x++) {
     uint16_t srcIdx = static_cast<uint16_t>((static_cast<uint32_t>(x) * (liveSampleCount - 1)) / (POUR_GRAPH_POINTS - 1));
@@ -309,7 +303,6 @@ bool storePourRecord(unsigned long totalElapsedMs, bool persistToNvs) {
     snprintf(key, sizeof(key), "rec_%u", rec.pourId % MAX_SAVED_POURS);
     pourPrefs.putBytes(key, &rec, sizeof(PourOverRecord));
     pourPrefs.end();
-    armBeverageCapture(rec.pourId, rec.finalWeightGrams, rec.doseGrams);  // bebida al quitar el dripper
     recordBrewContext(false, rec.pourId);                                 // molienda y bolsa
   }
 
@@ -372,15 +365,14 @@ void injectDemoPourOver() {
 
   const unsigned long base = 1000UL;
   float peak = 0.0f;
-  uint8_t pulses = 0;
-  bool pouring = false;
+  pourseg::Segmenter seg;
+  seg.reset();
   for (unsigned long ms = 0; ms <= (unsigned long)(totalSec * 1000.0f); ms += 100UL) {
     float w = demoPourWeightAt(ms / 1000.0f);
     fe.addSample(base + ms, w, true);
     float flow = fe.currentGps;
     if (flow > peak) peak = flow;
-    if (!pouring && flow >= 0.8f) { pouring = true; pulses++; }
-    else if (pouring && flow <= 0.25f) { pouring = false; }
+    seg.add(static_cast<uint32_t>(base + ms), w, flow);
     if ((ms % 500UL) == 0 && liveSampleCount < MAX_LIVE_POUR_SAMPLES) {
       psramLiveSamples[liveSampleCount].weightGrams = w;
       psramLiveSamples[liveSampleCount].flowGps     = (flow > 0.0f) ? flow : 0.0f;
@@ -388,7 +380,7 @@ void injectDemoPourOver() {
     }
   }
   peakFlowRateGps        = peak;
-  currentPourPulsesCount = pulses;
+  currentPourPulsesCount = seg.pours();
   storePourRecord((unsigned long)(totalSec * 1000.0f), false);
 
   coffeeDoseGrams    = savedDose;
@@ -398,50 +390,64 @@ void injectDemoPourOver() {
 }
 
 // ----------------------------------------------------------------------------
-// DEMOSTRACIÓN EN VIVO DE UN V60 (orden serie 'v'), para grabar la pantalla en movimiento.
-// Hace lo mismo que una persona: 2 clics (tara y Auto-Brew armado), vierte la receta de
-// demoPourWeightAt() en tiempo real (2:45) y 1 clic al final (para y guarda). El peso simulado entra en
-// la cola de muestras a 10 Hz, como el de la Dot, y recorre el mismo camino: motor de caudal, Auto-Brew,
-// muestreo a 2 Hz, detección del bloom y pantalla. Mientras dura se ignora el peso de la Dot, y el
-// pour-over resultante se guarda solo en RAM. Al terminar se restauran la dosis, el Auto-Brew y el
-// número del siguiente pour-over.
+// DEMOSTRACIÓN EN VIVO DE UN V60 GUIADO (orden serie 'v'), para grabar la pantalla y probar sin agua.
+// Hace lo mismo que una persona con el pour-over guiado (41_guia.ino): pone el server (300 g) y gira,
+// pone el V60 con el café (140 g) y gira, gira a Bloom, vierte la receta de demoPourWeightAt() en tiempo
+// real con un toque de la tetera a los 20 s, gira al acabar el bloom, al acabar de verter y al acabar el
+// drawdown, quita el V60 (queda el server con 215 g de bebida) y gira al resumen. El peso simulado entra en
+// la cola de muestras a 10 Hz, como el de la Dot, y recorre el mismo camino. Mientras dura se ignora el peso
+// de la Dot; el pour-over se guarda solo en RAM y su traza se marca como demo. Al terminar se restauran la
+// receta y el número del siguiente pour-over.
 // ----------------------------------------------------------------------------
-// Definidas en pestañas posteriores (60_power, 85_controles)
-void registerUserOrScaleActivity();
-void tareAndResetStopwatch();
-void startOrStopStopwatch();
+void registerUserOrScaleActivity();   // 60_power
 
-static constexpr float DEMO_LEAD_SEC  = 3.0f;   // pantalla con TIMER(A) armado antes del primer vertido
-static constexpr float DEMO_TAIL_SEC  = 4.0f;   // tras el clic final: aviso de guardado
+static constexpr float DEMO_LEAD_SEC  = 9.0f;     // antes del primer vertido: server, V60, bloom armado
+static constexpr float DEMO_END_SEC   = 173.0f;   // fin de la demostración (en el resumen)
+static const float demoTurnAt[]       = {-6.5f, -3.5f, -1.5f, 30.0f, 120.0f, 160.0f, 168.0f};
+static uint8_t demoTurnIdx            = 0;
 static unsigned long demoStartMs      = 0;
 static unsigned long demoLastSampleMs = 0;
 static float demoBaseGross            = 0.0f;
 static float demoSavedDose            = 0.0f;
-static bool demoSavedAutoTimer        = true;
+static float demoSavedRatio           = 0.0f;
+static float demoSavedBloom           = 0.0f;
 static uint16_t demoSavedNextId       = 1;
-static bool demoClickedStop           = false;
 static bool demoV60Running            = false;
+
+// Peso bruto de la Dot en el segundo t desde el primer vertido
+static float demoGrossAt(float t) {
+  float g = demoBaseGross;
+  if (t >= -8.0f) g += 300.0f;                       // server
+  if (t >= 163.0f) return g + 215.0f;                // V60 fuera: el server con la bebida
+  if (t >= -5.0f) g += 140.0f;                       // V60 con el café
+  g += demoPourWeightAt(t);
+  if (t >= 20.0f && t < 20.3f) g += 12.0f;           // toque de la tetera durante la espera del bloom
+  return roundf(g * 10.0f) / 10.0f;
+}
 
 void startDemoLivePour() {
   if (demoLiveActive) return;
+  if (brewMode != BrewMode::PourOver) setBrewMode(BrewMode::PourOver);
   demoSavedDose      = coffeeDoseGrams;
-  demoSavedAutoTimer = autoTimerEnabled;
+  demoSavedRatio     = pourRatio;
+  demoSavedBloom     = bloomFactor;
   demoSavedNextId    = nextPourSequenceId;
   coffeeDoseGrams    = 15.0f;
-  autoTimerEnabled   = true;
-  demoBaseGross      = rawWeightGrams;   // dripper y jarra ya sobre la báscula
+  pourRatio          = 16.7f;   // 250 g
+  bloomFactor        = 3.0f;    // 45 g
+  demoBaseGross      = rawWeightGrams;   // lo que haya ahora sobre la báscula
   uiState            = UiState::Main;
   currentScreenView  = 0;
   pourSavedBannerUntilMs = 0;
-  demoClickedStop    = false;
   if (weightQueue != nullptr) xQueueReset(weightQueue);
+  guideReset();
   demoLiveActive     = true;
   demoV60Running     = true;
-  tareAndResetStopwatch();               // "2 clics": tara + Auto-Brew armado
+  demoTurnIdx        = 0;
   demoStartMs        = millis();
   demoLastSampleMs   = 0;
   registerUserOrScaleActivity();
-  Serial.println("[DEMO] V60 en vivo: 15 g / 250 g, bloom de 30 s y 3 vertidos (2:45).");
+  Serial.println("[DEMO] V60 guiado: server, V60, bloom de 45 g (30 s), 3 vertidos hasta 250 g, yield 215 g.");
 }
 
 void serviceDemoLivePour() {
@@ -453,22 +459,22 @@ void serviceDemoLivePour() {
   const float t = (now - demoStartMs) / 1000.0f - DEMO_LEAD_SEC;   // segundos desde el primer vertido
   WeightSample s;
   s.ms     = now;
-  s.grams  = demoBaseGross + demoPourWeightAt(t);
+  s.grams  = demoGrossAt(t);
   s.stable = true;
   if (weightQueue != nullptr) xQueueSend(weightQueue, &s, 0);
   registerUserOrScaleActivity();
 
-  if (!demoClickedStop && t >= DEMO_POUR_TOTAL_SEC) {
-    demoClickedStop = true;
-    if (timerRunning) startOrStopStopwatch();   // "1 clic": para el cronómetro y guarda (en RAM)
+  if (demoTurnIdx < sizeof(demoTurnAt) / sizeof(demoTurnAt[0]) && t >= demoTurnAt[demoTurnIdx]) {
+    demoTurnIdx++;
+    guideRotate(1);   // "girar el encoder" al paso siguiente
   }
-  if (t >= DEMO_POUR_TOTAL_SEC + DEMO_TAIL_SEC) {
+  if (t >= DEMO_END_SEC) {
     demoV60Running     = false;
     demoLiveActive     = false;
     coffeeDoseGrams    = demoSavedDose;
-    autoTimerEnabled   = demoSavedAutoTimer;
-    autoTimerArmed     = false;
+    pourRatio          = demoSavedRatio;
+    bloomFactor        = demoSavedBloom;
     nextPourSequenceId = demoSavedNextId;
-    Serial.println("[DEMO] Fin de la demostracion.");
+    Serial.println("[DEMO] Fin de la demostracion (girar para salir del resumen).");
   }
 }

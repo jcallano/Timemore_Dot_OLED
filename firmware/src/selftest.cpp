@@ -11,6 +11,7 @@
 #include "taste_model.h"
 #include "flow_engine.h"
 #include "timemore_protocol.h"
+#include "pour_segmenter.h"
 
 namespace {
 
@@ -215,6 +216,73 @@ void testFlowEngine() {
   check(stale.fe.currentGps == 0.0f, "Sin paquetes BLE -> el caudal decae a 0", "obtenido %.2f", stale.fe.currentGps);
 }
 
+// Vertidos y toques de la tetera: el peso pasa por el motor de caudal real y luego por el segmentador
+struct SegSim {
+  FlowEngine fe;
+  pourseg::Segmenter seg;
+  unsigned long t = 1000;
+  float water = 0.0f;      // agua de verdad en la báscula
+  float push = 0.0f;       // fuerza del toque (g aparentes, sin agua)
+  int tick = 0;
+  float reported = 0.0f;
+  int accepted = 0, merged = 0, rejected = 0;
+
+  void step(float gps) {
+    water += gps * 0.1f;
+    if ((tick++ % 2) == 0) reported = roundf((water + push) * 10.0f) / 10.0f;
+    fe.addSample(t, reported, true);
+    const pourseg::Event e = seg.add(static_cast<uint32_t>(t), reported, fe.currentGps);
+    if (e == pourseg::Event::PourAccepted) accepted++;
+    if (e == pourseg::Event::PourMerged) merged++;
+    if (e == pourseg::Event::TapRejected) rejected++;
+    t += 100;
+  }
+  void run(float gps, int ms) { for (int i = 0; i < ms / 100; i++) step(gps); }
+  // Toque: empuja `grams` durante `ms` y suelta
+  void tap(float grams, int ms) {
+    push = grams;
+    run(0.0f, ms);
+    push = 0.0f;
+  }
+};
+
+void testPourSegmenter() {
+  g_print("[TEST] Vertidos y toques (src/pour_segmenter)");
+
+  SegSim s;
+  s.run(0.0f, 1000);
+  s.run(5.0f, 8000);          // bloom: 40 g
+  s.run(0.0f, 12000);
+  s.tap(12.0f, 300);          // toque corto con el pico de la tetera
+  s.run(0.0f, 15000);
+  check(s.seg.pours() == 1 && s.seg.taps() == 1, "Bloom + toque corto -> 1 vertido y 1 toque",
+        "vertidos %.0f toques %.0f", s.seg.pours(), s.seg.taps());
+
+  s.run(4.0f, 20000);         // vertido 1: 80 g
+  s.run(0.0f, 1500);          // la mano se recoloca
+  s.run(4.0f, 5000);          // sigue la misma tanda
+  s.run(0.0f, 10000);
+  check(s.seg.pours() == 2 && s.merged == 1, "Pausa de 1.5 s dentro de una tanda -> se une",
+        "vertidos %.0f uniones %.0f", s.seg.pours(), static_cast<float>(s.merged));
+
+  s.tap(8.0f, 1500);          // apoyo largo (1.5 s) sin agua: dura, pero no deja peso
+  s.run(0.0f, 5000);
+  check(s.seg.pours() == 2 && s.seg.taps() == 2, "Apoyo largo sin agua -> toque, no vertido",
+        "vertidos %.0f toques %.0f", s.seg.pours(), s.seg.taps());
+
+  s.run(3.0f, 20000);         // vertido 2: 60 g
+  check(s.seg.livePours(s.reported) == 3, "En pleno vertido ya se cuenta en vivo",
+        "en vivo %.0f", s.seg.livePours(s.reported));
+  s.run(0.0f, 5000);
+  check(s.seg.pours() == 3, "Bloom + 2 tandas -> 3 vertidos", "vertidos %.0f", s.seg.pours());
+
+  SegSim slowTap;
+  slowTap.run(0.0f, 1000);
+  slowTap.run(1.0f, 2000);    // 2 g: un chorrito, no un vertido
+  slowTap.run(0.0f, 3000);
+  check(slowTap.seg.pours() == 0, "Chorrito de 2 g -> no es vertido", "vertidos %.0f", slowTap.seg.pours());
+}
+
 void testBookoo() {
   uint8_t f[bkproto::WEIGHT_FRAME_LEN];
   // Trama inicial del puente (0.00 g, batería 90 %): vector conocido con XOR 0x37
@@ -299,6 +367,7 @@ void testDifluid() {
   e = dfproto::decodeAction(dfproto::parseFrame(noLiq, sizeof(noLiq)));
   check(e.kind == dfproto::TestEvent::Error && e.errClass == 2 && e.errCode == dfproto::ERR_NO_LIQUID,
         "R2: error real 'sin liquido' (DF DF 03 FE 03 00 02 03 C7)");
+
 }
 
 void testTdsSampler() {
@@ -413,6 +482,7 @@ int runSelfTests(void (*print)(const char* line)) {
   g_pass  = 0;
   testProtocol();
   testFlowEngine();
+  testPourSegmenter();
   testBookoo();
   testDifluid();
   testTdsSampler();

@@ -186,6 +186,9 @@ void processWeightSample(const WeightSample& sample) {
     currentWeightGrams = newNetWeight;
     lastBleWeightRxMs  = nowMs;
 
+    // Pour-over guiado: vertidos, toques de la tetera, arranque del cronómetro y traza a 10 Hz
+    guideOnWeightSample(nowMs, parsedWeight, newNetWeight);
+
     // Redibujar OLED en el acto cuando cambia el peso (>= 0.05 g) o cuando cambia el flow con histéresis
     if (weightChanged >= 0.05f || fabsf(displayedFlowRateGps - prevDisplayedFlow) >= 0.15f) {
       uiNeedsImmediateRedraw = true;
@@ -276,15 +279,21 @@ class ScaleClientCallbacks : public NimBLEClientCallbacks {
 
 static ScaleClientCallbacks scaleClientCallbacks;
 
-// Lista corta de MACs rechazadas en esta sesión (conectaron pero no eran una Timemore):
-// evita reconectar en bucle cada 1.5 s al mismo dispositivo ajeno.
-static constexpr uint8_t MAX_REJECTED_MACS = 4;
+// Lista corta de MACs en espera (conectaron pero no mandaron peso ni se pudo suscribir): evita reconectar
+// en bucle cada 1.5 s al mismo dispositivo. La espera dura REJECT_MS: antes era hasta el siguiente
+// reinicio, y una Dot de verdad que tardaba en mandar peso (recién encendida, o con otra app conectada)
+// se quedaba bloqueada sin aviso, incluso tras Re-vincular. Re-vincular vacía la lista.
+static constexpr uint8_t  MAX_REJECTED_MACS = 4;
+static constexpr uint32_t REJECT_MS         = 60000UL;
 char rejectedMacs[MAX_REJECTED_MACS][20] = {{0}};
+uint32_t rejectedAtMs[MAX_REJECTED_MACS] = {0};
 uint8_t rejectedMacsHead = 0;
 
 bool isMacRejected(const char* mac) {
   for (uint8_t i = 0; i < MAX_REJECTED_MACS; i++) {
-    if (rejectedMacs[i][0] != '\0' && strcasecmp(rejectedMacs[i], mac) == 0) return true;
+    if (rejectedMacs[i][0] == '\0' || strcasecmp(rejectedMacs[i], mac) != 0) continue;
+    if ((uint32_t)(millis() - rejectedAtMs[i]) < REJECT_MS) return true;
+    rejectedMacs[i][0] = '\0';   // pasó la espera: se vuelve a intentar
   }
   return false;
 }
@@ -293,8 +302,14 @@ void rejectMac(const char* mac) {
   if (mac == nullptr || mac[0] == '\0' || isMacRejected(mac)) return;
   strncpy(rejectedMacs[rejectedMacsHead], mac, sizeof(rejectedMacs[0]) - 1);
   rejectedMacs[rejectedMacsHead][sizeof(rejectedMacs[0]) - 1] = '\0';
+  rejectedAtMs[rejectedMacsHead] = millis();
   rejectedMacsHead = (rejectedMacsHead + 1) % MAX_REJECTED_MACS;
-  Serial.printf("[SCAN] %s descartada para esta sesion (no es una Timemore).\n", mac);
+  Serial.printf("[SCAN] %s no mando peso: se reintenta en %lu s.\n", mac, (unsigned long)(REJECT_MS / 1000UL));
+}
+
+// Re-vincular: empezar de cero
+void clearRejectedMacs() {
+  for (uint8_t i = 0; i < MAX_REJECTED_MACS; i++) rejectedMacs[i][0] = '\0';
 }
 
 bool isSavedScaleMac(const char* mac) {
@@ -554,9 +569,6 @@ bool beginScaleConnection(uint8_t addrType, uint32_t timeoutMs) {
     pScaleClient->setClientCallbacks(&scaleClientCallbacks, false);
     // Intervalo nativo óptimo de baja latencia (8..12 * 1.25ms = 10ms..15ms, slave_latency = 0)
     pScaleClient->setConnectionParams(8, 12, 0, 400, 16, 16);
-#if defined(NIMBLE_V2) && defined(CONFIG_BT_NIMBLE_EXT_ADV)
-    pScaleClient->setConnectPhy(BLE_GAP_LE_PHY_1M_MASK);
-#endif
   }
 
   if (pScaleClient->isConnected()) {

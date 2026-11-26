@@ -43,6 +43,17 @@ void updateStatusLed() {
     }
   }
 
+  // Pour-over guiado, paso Vertidos: amarillo en los 10 g antes del agua objetivo, rojo al llegar
+  const uint8_t guideLevel = scaleConnected ? guideLedLevel() : 0;
+  if (guideLevel == 2) {
+    setRgbColor(LED_BRIGHTNESS * 2, 0, 0);
+    return;
+  }
+  if (guideLevel == 1) {
+    setRgbColor(LED_BRIGHTNESS * 2, LED_BRIGHTNESS * 3 / 2, 0);
+    return;
+  }
+
   if (scaleConnected) {
     if (fabsf(currentFlowRateGps) >= 0.2f) {
       // Cian durante flujo activo de extracción

@@ -6,9 +6,8 @@
 // una tabla aparte por historial, unida por el id del registro (un blob por tabla en la NVS).
 //
 // Bebida del pour-over: la Dot pesa el agua vertida; parte se queda en el café.
-//   - Medida: con la jarra registrada (Menú -> Jarra, pesada vacía), al quitar el dripper tras guardar el
-//     pour-over queda en la báscula la jarra con la bebida. Como la tara es por software, el peso absoluto
-//     de la Dot (rawWeightGrams) menos la jarra es la bebida. Cada medida afina la retención aprendida.
+//   - Medida: en el paso Yield del pour-over guiado (41_guia.ino), al quitar el V60 queda en la báscula el
+//     server con la bebida; el server se pesó en su paso. Cada medida afina la retención aprendida.
 //   - Estimada: agua - retención (g de agua por g de café, aprendida; 2.0 al principio). EY* en pantalla.
 // Espresso: la taza está en la báscula; la bebida es el peso final del shot.
 // ============================================================================
@@ -16,7 +15,6 @@
 // BrewExtra: en firmware.ino (los tipos de las firmas deben ir antes de los prototipos del IDE)
 static BrewExtra pourExtras[MAX_SAVED_POURS];
 static BrewExtra shotExtras[MAX_SAVED_SHOTS];
-float serverJarGrams       = 0.0f;    // peso de la jarra vacía (0 = sin registrar)
 float pourRetentionRatio   = 2.0f;    // g de agua retenida por g de café (aprendida)
 
 // Molino y bolsa: cada registro guarda la molienda y la bolsa con las que se hizo
@@ -28,13 +26,6 @@ static constexpr float GRIND_MIN = 0.0f, GRIND_MAX = 60.0f;
 // Punto dulce personal (centro de la zona del gráfico), por modo. Empieza en la zona SCA.
 float sweetEyPour = 20.0f, sweetTdsPour = 1.30f, sweetEyEsp = 20.0f, sweetTdsEsp = 10.0f;
 static constexpr float HALF_EY = 2.0f, HALF_TDS_POUR = 0.15f, HALF_TDS_ESP = 1.5f;
-
-// Bebida pendiente de medir tras guardar un pour-over
-static uint16_t bevPendingPourId   = 0;
-static float bevPendingWater       = 0.0f;
-static float bevPendingDose        = 0.0f;
-static unsigned long bevPendingSinceMs = 0, bevStableSinceMs = 0;
-static float bevLastCandidate      = 0.0f;
 
 void loadBrewExtras() {
   memset(pourExtras, 0, sizeof(pourExtras));
@@ -50,16 +41,14 @@ void loadBrewExtras() {
   sweetTdsPour   = p.getFloat("sw_tds_f", 1.30f);
   sweetEyEsp     = p.getFloat("sw_ey_e", 20.0f);
   sweetTdsEsp    = p.getFloat("sw_tds_e", 10.0f);
-  serverJarGrams     = p.getFloat("jar", 0.0f);
   pourRetentionRatio = p.getFloat("ret", 2.0f);
   p.end();
   Preferences s;
   s.begin(NVS_SHOT_NAMESPACE, true);
   if (s.getBytesLength("sx2") == sizeof(shotExtras)) s.getBytes("sx2", shotExtras, sizeof(shotExtras));
   s.end();
-  if (isnan(serverJarGrams) || serverJarGrams < 0.0f || serverJarGrams > 1500.0f) serverJarGrams = 0.0f;
   if (isnan(pourRetentionRatio) || pourRetentionRatio < 1.0f || pourRetentionRatio > 3.5f) pourRetentionRatio = 2.0f;
-  Serial.printf("[EXTRACCION] Jarra %.1f g | retencion %.2f g/g\n", serverJarGrams, pourRetentionRatio);
+  Serial.printf("[EXTRACCION] Retencion %.2f g/g\n", pourRetentionRatio);
 }
 
 static void saveExtras(bool shot) {
@@ -91,15 +80,6 @@ static BrewExtra* findExtra(bool shot, uint16_t id, bool create) {
   t[pick].grindX10 = 0xFFFF;
   t[pick].taste    = TASTE_NONE;
   return &t[pick];
-}
-
-void saveServerJar(float grams) {
-  serverJarGrams = grams;
-  Preferences p;
-  p.begin(NVS_POUR_NAMESPACE, false);
-  p.putFloat("jar", serverJarGrams);
-  p.end();
-  Serial.printf("[EXTRACCION] Jarra: %.1f g\n", serverJarGrams);
 }
 
 // Resultado de la medida del R2 (58_difluid_r2.ino)
@@ -162,51 +142,20 @@ float recordEy(bool shot, uint16_t id, bool* estimated) {
 }
 
 // ---------------------------------------------------------------------------
-// Medida de la bebida al quitar el dripper
+// Bebida medida en el paso Yield del pour-over guiado (41_guia.ino)
 // ---------------------------------------------------------------------------
-// Lo llama storePourRecord() (30_storage.ino) al guardar un pour-over real
-void armBeverageCapture(uint16_t pourId, float waterG, float doseG) {
-  if (serverJarGrams <= 0.0f || waterG < 50.0f) return;
-  bevPendingPourId   = pourId;
-  bevPendingWater    = waterG;
-  bevPendingDose     = doseG;
-  bevPendingSinceMs  = millis();
-  bevStableSinceMs   = 0;
-}
-
-void serviceBeverageCapture() {
-  if (bevPendingPourId == 0) return;
-  const unsigned long now = millis();
-  if ((now - bevPendingSinceMs) > 180000UL) {   // 3 min sin quitar el dripper: se olvida
-    bevPendingPourId = 0;
-    return;
+void storeMeasuredBeverage(uint16_t pourId, float bev, float waterG, float doseG) {
+  BrewExtra* e = findExtra(false, pourId, true);
+  if (e == nullptr) return;
+  e->beverageX10 = static_cast<uint16_t>(lroundf(bev * 10.0f));
+  // Retención de este pour-over: afina la estimación de los que se hagan sin medir el yield
+  if (doseG > 1.0f) {
+    const float r = (waterG - bev) / doseG;
+    if (r >= 1.0f && r <= 3.5f) pourRetentionRatio = 0.7f * pourRetentionRatio + 0.3f * r;
   }
-  // Dripper fuera: el peso neto cae claramente por debajo del agua vertida
-  const float bev = rawWeightGrams - serverJarGrams;
-  const bool plausible = (currentWeightGrams < 0.9f * bevPendingWater) &&
-                         bev > 0.5f * bevPendingWater && bev <= bevPendingWater + 2.0f;
-  if (!plausible || !weightIsStable || fabsf(bev - bevLastCandidate) > 0.3f) {
-    bevLastCandidate = bev;
-    bevStableSinceMs = 0;
-    return;
-  }
-  if (bevStableSinceMs == 0) { bevStableSinceMs = now; return; }
-  if ((now - bevStableSinceMs) < 1500UL) return;
-
-  BrewExtra* e = findExtra(false, bevPendingPourId, true);
-  if (e != nullptr) {
-    e->beverageX10 = static_cast<uint16_t>(lroundf(bev * 10.0f));
-    // Retención de este pour-over: afina la estimación de los siguientes
-    if (bevPendingDose > 1.0f) {
-      const float r = (bevPendingWater - bev) / bevPendingDose;
-      if (r >= 1.0f && r <= 3.5f) pourRetentionRatio = 0.7f * pourRetentionRatio + 0.3f * r;
-    }
-    saveExtras(false);
-    Serial.printf("[EXTRACCION] Pour-over #%u: bebida %.1f g (agua %.1f g) | retencion %.2f g/g\n",
-                  bevPendingPourId, bev, bevPendingWater, pourRetentionRatio);
-    uiNeedsImmediateRedraw = true;
-  }
-  bevPendingPourId = 0;
+  saveExtras(false);
+  Serial.printf("[EXTRACCION] Pour-over #%u: bebida %.1f g (agua %.1f g) | retencion %.2f g/g\n",
+                pourId, bev, waterG, pourRetentionRatio);
 }
 
 // ---------------------------------------------------------------------------
@@ -262,6 +211,21 @@ void recordBrewContext(bool shot, uint16_t id) {
   e->grindX10 = static_cast<uint16_t>(lroundf(g * 10.0f));
   e->bagId    = currentBagId;
   saveExtras(shot);
+}
+
+// Enviado a Beanconqueror (bit 0 de BrewExtra.flags; recordBrewContext lo limpia en cada café nuevo)
+static constexpr uint8_t EXTRA_FLAG_SENT_BC = 0x01;
+
+bool recordSentToBc(uint16_t pourId) {
+  const BrewExtra* e = findExtra(false, pourId, false);
+  return e != nullptr && (e->flags & EXTRA_FLAG_SENT_BC) != 0;
+}
+
+void markSentToBc(uint16_t pourId) {
+  BrewExtra* e = findExtra(false, pourId, true);
+  if (e == nullptr || (e->flags & EXTRA_FLAG_SENT_BC)) return;
+  e->flags |= EXTRA_FLAG_SENT_BC;
+  saveExtras(false);
 }
 
 bool recordTaste(bool shot, uint16_t id, int8_t* acidBitter, int8_t* strength) {

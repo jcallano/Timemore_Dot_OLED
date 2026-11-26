@@ -51,6 +51,11 @@ float r2LivePrismC = 0.0f, r2LiveSampleC = 0.0f, r2LiveTds = 0.0f;
 bool r2LiveHaveTemp = false, r2LiveHaveTds = false;
 // Cero (calibración con agua destilada): pedido desde el menú; se lanza al estar conectado
 static bool r2PendingZero       = false;
+// Pantalla de TDS en dos pasos: 1) cero con el agua del café a temperatura ambiente, 2) la muestra.
+// Se abre siempre en el paso del cero; girar lo salta (mismo agua y mismo día) y al terminar el cero pasa
+// sola a la muestra. La fecha del último cero se guarda para decidir si repetirlo.
+bool r2ZeroStep                 = false;
+uint32_t r2LastZeroEpoch        = 0;     // 0 = sin cero registrado (o sin reloj)
 static constexpr uint32_t R2_ZERO_TIMEOUT = 120000;   // el R2 espera a que la muestra se estabilice (~50 s)
 // Registro destino: pour-over o shot, por su id
 bool r2TargetIsShot             = false;
@@ -76,6 +81,7 @@ void loadR2Settings() {
   p.begin(NVS_R2_NAMESPACE, true);
   String mac  = p.getString("mac", "");
   r2SavedType = p.getUChar("type", 0);
+  r2LastZeroEpoch = p.getULong("zero_ep", 0);
   p.end();
   strncpy(r2SavedMac, mac.c_str(), sizeof(r2SavedMac) - 1);
   if (r2Queue == nullptr) r2Queue = xQueueCreate(16, sizeof(R2Raw));
@@ -156,6 +162,7 @@ void r2Request() {
   }
 }
 
+bool r2Paired() { return r2SavedMac[0] != '\0'; }   // hay un R2 vinculado (aunque esté apagado)
 bool r2Connected() { return r2State == R2State::Ready || r2State == R2State::Measuring || r2State == R2State::Calibrating; }
 
 void r2StartMeasure() {
@@ -171,7 +178,7 @@ void r2StartMeasure() {
   Serial.printf("[R2] Medida para %s #%u\n", r2TargetIsShot ? "shot" : "pour-over", r2TargetId);
 }
 
-// Menú -> Cero R2: con agua destilada en el R2
+// Cero del R2 (paso 1 de la pantalla de TDS): con el agua del café, a temperatura ambiente
 void r2RequestZero() {
   r2PendingZero = true;
   r2StatusMsg[0] = '\0';
@@ -243,8 +250,18 @@ static void r2HandleFrame(const uint8_t* raw, size_t n) {
   if (f.cmd == dfproto::ACT_CALIBRATE) {   // cero: el R2 responde estado 'calibración terminada' y concentración 0
     if (e.kind == dfproto::TestEvent::Temperature) { r2LivePrismC = e.prismC; r2LiveSampleC = e.sampleC; r2LiveHaveTemp = true; }
     if (e.kind == dfproto::TestEvent::Status && e.status == dfproto::ST_CAL_FINISHED) {
-      strncpy(r2StatusMsg, TR("CERO OK", "ZERO OK"), sizeof(r2StatusMsg) - 1);
+      strncpy(r2StatusMsg, TR("CERO OK: PON CAFE", "ZERO OK: ADD COFFEE"), sizeof(r2StatusMsg) - 1);
       Serial.println("[R2] Cero hecho.");
+      r2ZeroStep = false;                      // a la muestra
+      const uint32_t ep = nowEpochOrZero();
+      if (ep != 0) {
+        r2LastZeroEpoch = ep;
+        Preferences p;
+        p.begin(NVS_R2_NAMESPACE, false);
+        p.putULong("zero_ep", ep);
+        p.end();
+      }
+      uiNeedsImmediateRedraw = true;
       r2SetState(r2State == R2State::Measuring ? R2State::Measuring : R2State::Ready);
     }
     if (e.kind != dfproto::TestEvent::Error) return;
@@ -326,6 +343,7 @@ void serviceR2() {
         pR2Client->setConnectTimeout(R2_CONNECT_MS);
         Serial.printf("[R2] Conectando a %s...\n", r2CandMac);
         if (!pR2Client->connect(NimBLEAddress(std::string(r2CandMac), r2CandType), true, true, false)) {
+          Serial.printf("[R2] connect() rechazado: rc=%d\n", pR2Client->getLastError());
           r2Fail(TR("NO CONECTA", "CONNECT FAILED"));
           break;
         }

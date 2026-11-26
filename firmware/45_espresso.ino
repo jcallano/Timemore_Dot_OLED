@@ -140,6 +140,7 @@ void setBrewMode(BrewMode m) {
   shotPhase          = ShotPhase::Idle;
   espArmed           = false;
   resetLivePourRecording();
+  currentScreenView  = 0;   // las vistas no son las mismas en los dos modos
   saveEspressoSettings();
   Serial.printf("[MODO] %s\n", m == BrewMode::Espresso ? "ESPRESSO" : "POUR-OVER");
 }

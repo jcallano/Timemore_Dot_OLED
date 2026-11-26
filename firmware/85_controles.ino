@@ -8,31 +8,18 @@
 // ============================================================================
 // LECTURA DEL ENCODER ROTATORIO (GPIO 10/11/12), BOTÓN BOOT (GPIO 0) Y SERIE
 // ============================================================================
-// Controles por clics del botón (Encoder SW GPIO 12 y Botón BOOT GPIO 0):
-// - 1 Click  (Single Click): Cronómetro START / STOP (Iniciar / Pausar)
-// - 2 Clicks (Double Click): TARA (0.0 g) + Reseteo del Cronómetro (0.0 s)
-// - 3 Clicks (Triple Click): Abrir / Cerrar el Menú de Configuración
-void startOrStopStopwatch() {
-  unsigned long now = millis();
-  if (timerRunning) {
-    timerAccumulatedMs += (now - timerStartMillis);
-    timerRunning = false;
-    Serial.println("[TIMER] 1-Click: Cronometro PAUSADO.");
-    // Al pausar/terminar la extracción, guardar automáticamente el Pour-Over en PSRAM + NVS
-    // Con la máquina conectada por el puente es un espresso: no va al historial de Pour-Over
-    if (!bookooMachineConnected) finalizeAndSaveCurrentPourOver(timerAccumulatedMs);
-  } else {
-    if (timerAccumulatedMs == 0) {
-      resetLivePourRecording();
-    }
-    timerStartMillis = now;
-    timerRunning     = true;
-    autoTimerArmed   = false;
-    Serial.println("[TIMER] 1-Click: Cronometro INICIADO.");
-  }
-}
-
+// Controles por clics del botón (Encoder SW GPIO 12 y Botón BOOT GPIO 0), en el pesaje:
+// - Girar:    pour-over -> siguiente / anterior paso (41_guia.ino); espresso -> cambiar de vista
+// - 1 Click:  pour-over -> cambiar de vista; espresso -> empezar / cortar el shot
+// - 2 Clicks: TARA (pour-over: la del paso actual, sin perder el server)
+// - 3 Clicks: Abrir / Cerrar el Menú de Configuración
 void tareAndResetStopwatch() {
+  if (brewMode == BrewMode::PourOver && shotPhase == ShotPhase::Idle) {
+    pourSavedBannerUntilMs = 0;
+    if (guideRecipeEditing()) guideRecipeDone();   // 2 clics editando la receta: guardar y salir
+    else                      guideTare();
+    return;
+  }
   // Doble clic: Tara + Reset inmediato en 0 ms (NO guardar en Flash NVS ni mostrar banner de 2.2s;
   // el guardado a Flash NVS se realiza únicamente al detener la extracción con 1 Clic).
   pourSavedBannerUntilMs = 0;
@@ -88,6 +75,7 @@ static void openChart(bool shot, uint16_t id, bool fromViewer) {
 }
 
 static void openTdsScreen() {
+  r2ZeroStep = true;   // primero el cero con el agua del café (girar lo salta)
   r2TargetId = 0;
   tdsSelectRecord(0);
   uiState = UiState::TdsMeasure;
@@ -98,8 +86,7 @@ static void openTdsScreen() {
 static void commitMenuEdit() {
   if (uiState != UiState::MenuEdit) return;
   if (menuEditItem == MI_GRIND) { saveGrindSettings(); return; }
-  if (menuEditItem == MI_DOSE && brewMode == BrewMode::PourOver) saveDoseToNVS();
-  else saveEspressoSettings();
+  saveEspressoSettings();
 }
 
 void executeButtonMultiClickAction(uint8_t clicks) {
@@ -111,6 +98,7 @@ void executeButtonMultiClickAction(uint8_t clicks) {
 
   // 3 CLICKS: Abrir / Cerrar Menú (o salir del visor del historial)
   if (clicks >= 3) {
+    guideRecipeDone();   // si se estaba editando la receta del pour-over, se guarda
     if (uiState == UiState::PourViewer || uiState == UiState::TdsMeasure) {
       r2CancelMeasure();
       uiState = UiState::Main;
@@ -156,13 +144,20 @@ void executeButtonMultiClickAction(uint8_t clicks) {
     if (uiState == UiState::Chart) {
       int8_t ab, st;
       if (chartShowAdvice && !recordTaste(r2TargetIsShot, r2TargetId, &ab, &st)) beginTasteInput();
-      else if (chartShowAdvice && chartFromViewer) uiState = UiState::PourViewer;
+      else if (chartShowAdvice && chartFromViewer) {
+        uiState = UiState::PourViewer;
+        pourViewerShowSendPage = !r2TargetIsShot;   // pour-over: a "Enviar a Beanconqueror"
+      }
       else if (chartShowAdvice) uiState = UiState::Main;
       else chartShowAdvice = true;
       return;
     }
     if (uiState == UiState::TdsMeasure) {
       if (r2State == R2State::Calibrating)                  return;
+      if (r2ZeroStep) {                                     // paso 1: hacer el cero
+        r2RequestZero();
+        return;
+      }
       if (r2State == R2State::Measuring)                    r2CancelMeasure();
       else if (r2State == R2State::Ready && r2TargetId != 0) r2StartMeasure();
       else                                                  r2Request();
@@ -172,12 +167,19 @@ void executeButtonMultiClickAction(uint8_t clicks) {
       if (viewerCount() == 0) {
         uiState = UiState::Main;
       } else {
-        // 1 Click dentro del visor: GRÁFICA -> FICHA -> (con TDS) GRÁFICO DE CONTROL -> GRÁFICA
+        // 1 Click dentro del visor: GRÁFICA -> FICHA -> (con TDS) GRÁFICO DE CONTROL -> (pour-over) ENVIAR
+        // A BEANCONQUEROR -> GRÁFICA. En la página de enviar, el clic envía (WiFi y QR, 77_compartir.ino).
         const bool shot = viewerShowsShots;
         const uint16_t id = shot ? savedShots[selectedShotSlot].shotId : psramSavedPours[selectedPourSlot].pourId;
-        if (pourViewerShowStatsPage && recordTds(shot, id, nullptr, nullptr)) {
+        if (pourViewerShowSendPage) {
+          pourViewerShowSendPage = false;
+          enterShareMode(id, false);
+        } else if (pourViewerShowStatsPage && recordTds(shot, id, nullptr, nullptr)) {
           pourViewerShowStatsPage = false;
           openChart(shot, id, true);
+        } else if (pourViewerShowStatsPage && !shot) {
+          pourViewerShowStatsPage = false;
+          pourViewerShowSendPage  = true;
         } else {
           pourViewerShowStatsPage = !pourViewerShowStatsPage;
         }
@@ -201,11 +203,8 @@ void executeButtonMultiClickAction(uint8_t clicks) {
           uiState                 = UiState::PourViewer;
           viewerShowsShots        = (brewMode == BrewMode::Espresso);
           pourViewerShowStatsPage = false;
+          pourViewerShowSendPage  = false;
           if (viewerCount() > 0) viewerSlot() = static_cast<int8_t>(viewerCount() - 1);
-          break;
-        case MI_AUTOTIMER:
-          autoTimerEnabled = !autoTimerEnabled;
-          autoTimerArmed   = autoTimerEnabled;
           break;
         case MI_DOSE:          // valores editables: 1 clic entra, girar ajusta, 1 clic guarda
         case MI_RATIO:
@@ -222,10 +221,6 @@ void executeButtonMultiClickAction(uint8_t clicks) {
         case MI_TDS:           // medida de TDS con el DiFluid R2
           openTdsScreen();
           break;
-        case MI_R2ZERO:        // cero del R2 con agua destilada
-          openTdsScreen();
-          r2RequestZero();
-          break;
         case MI_PROFILE:       // lo que ha aprendido la red neuronal
           profileShowsShot = (brewMode == BrewMode::Espresso);
           uiState = UiState::Profile;
@@ -236,9 +231,6 @@ void executeButtonMultiClickAction(uint8_t clicks) {
         case MI_GRIND_DIR:     // sentido del molino
           grindUpCoarser = !grindUpCoarser;
           saveGrindSettings();
-          break;
-        case MI_JAR:           // jarra vacía sobre la báscula: su peso (sin nada, la borra)
-          saveServerJar(rawWeightGrams > 20.0f ? static_cast<float>(rawWeightGrams) : 0.0f);
           break;
         case MI_LANG:          // idioma de la pantalla
           uiEnglish = !uiEnglish;
@@ -272,7 +264,9 @@ void executeButtonMultiClickAction(uint8_t clicks) {
     } else if (brewMode == BrewMode::Espresso) {
       espressoClick();         // shot: arranca / corta
     } else {
-      startOrStopStopwatch();  // pour-over: cronómetro start / stop
+      // Pour-over: en Listo el clic edita la receta; en los demás pasos cambia de vista (el giro, de paso)
+      if (guideStep == GuideStep::Ready && currentScreenView == 0) guideRecipeClick();
+      else                                                          guideNextView();
     }
   }
 }
@@ -290,7 +284,11 @@ void applyEncoderDelta(int32_t delta) {
     } else if (uiState == UiState::Chart) {
       chartShowAdvice = !chartShowAdvice;
     } else if (uiState == UiState::TdsMeasure) {
-      if (r2State != R2State::Measuring) tdsSelectRecord(delta > 0 ? 1 : -1);
+      if (r2ZeroStep) {
+        if (r2State != R2State::Calibrating) r2ZeroStep = false;   // ya hay cero de hoy: a la muestra
+      } else if (r2State != R2State::Measuring) {
+        tdsSelectRecord(delta > 0 ? 1 : -1);
+      }
     } else if (uiState == UiState::PourViewer) {
       const uint8_t n = viewerCount();
       if (n > 0) {
@@ -301,9 +299,7 @@ void applyEncoderDelta(int32_t delta) {
       }
     } else if (uiState == UiState::MenuEdit) {
       const float d = static_cast<float>(delta);
-      if (menuEditItem == MI_DOSE && brewMode == BrewMode::PourOver) {
-        coffeeDoseGrams = constrain(coffeeDoseGrams + d * 0.5f, DOSE_MIN_G, DOSE_MAX_G);
-      } else if (menuEditItem == MI_DOSE) {
+      if (menuEditItem == MI_DOSE) {
         espDoseGrams = constrain(roundf((espDoseGrams + d * 0.1f) * 10.0f) / 10.0f, ESP_DOSE_MIN_G, ESP_DOSE_MAX_G);
       } else if (menuEditItem == MI_RATIO) {
         espRatio = constrain(roundf((espRatio + d * 0.1f) * 10.0f) / 10.0f, ESP_RATIO_MIN, ESP_RATIO_MAX);
@@ -320,6 +316,11 @@ void applyEncoderDelta(int32_t delta) {
       menuSelectedIndex = static_cast<int8_t>(menuSelectedIndex + delta);
       while (menuSelectedIndex < 0) menuSelectedIndex += n;
       while (menuSelectedIndex >= n) menuSelectedIndex -= n;
+    } else if (brewMode == BrewMode::PourOver && shotPhase == ShotPhase::Idle) {
+      // Pour-over guiado: el giro avanza o deshace el paso (una muesca = un paso)
+      pourSavedBannerUntilMs = 0;
+      if (guideRecipeEditing())                 guideRecipeAdjust(delta);   // receta: ajusta el valor
+      else if (guideRotate(delta > 0 ? 1 : -1)) openTdsScreen();             // del resumen a la medida de TDS
     } else {
       // En pantalla principal: girar cambia entre las 4 vistas (todas con el PESO como protagonista) y,
       // con la máquina conectada por el puente, una 5ª vista de diagnóstico del puente
@@ -523,22 +524,38 @@ void handleSerialCommands() {
       uiState = UiState::PourViewer;
       viewerShowsShots = (brewMode == BrewMode::Espresso);
       pourViewerShowStatsPage = (c == 'i' || c == 'I');
+      pourViewerShowSendPage  = false;
       if (viewerCount() > 0) viewerSlot() = static_cast<int8_t>(viewerCount() - 1);
       pourSavedBannerUntilMs = 0;
       uiNeedsImmediateRedraw = true;
+    } else if (c == 'n' || c == 'N') {
+      // Historial de pour-overs en la página "Enviar a Beanconqueror" del último (capturas y vídeo)
+      uiState = UiState::PourViewer;
+      viewerShowsShots = false;
+      pourViewerShowStatsPage = false;
+      pourViewerShowSendPage  = true;
+      if (savedPoursCount > 0) selectedPourSlot = static_cast<int8_t>(savedPoursCount - 1);
+      pourSavedBannerUntilMs = 0;
+      uiNeedsImmediateRedraw = true;
+    } else if (c == 'h' || c == 'H') {
+      uiEnglish = !uiEnglish;   // idioma de la pantalla, como Menú -> Idioma
+      saveLanguageToNVS();
+      uiNeedsImmediateRedraw = true;
+      Serial.printf("[UI] Idioma: %s\n", uiEnglish ? "ingles" : "espanol");
     } else if (c == 'm' || c == 'M') {
       uiState = UiState::Menu;
       menuSelectedIndex = 0;
       pourSavedBannerUntilMs = 0;
       uiNeedsImmediateRedraw = true;
     } else if (c == 'o' || c == 'O') {
-      // Cero del R2 (agua destilada en el prisma)
+      // Cero del R2 (agua del café en el prisma), como 1 clic en el paso del cero
       openTdsScreen();
       r2RequestZero();
       uiNeedsImmediateRedraw = true;
     } else if (c == 'u' || c == 'U') {
       // Medir TDS (como 1 clic en la pantalla TDS): abre la pantalla si hace falta
       if (uiState != UiState::TdsMeasure) openTdsScreen();
+      r2ZeroStep = false;
       if (r2State == R2State::Ready) r2StartMeasure(); else r2Request();
       uiNeedsImmediateRedraw = true;
     } else if (c == '<' || c == '>') {
@@ -570,6 +587,13 @@ void handleSerialCommands() {
       openTdsScreen();
       pourSavedBannerUntilMs = 0;
       uiNeedsImmediateRedraw = true;
+    } else if (c == 'w' || c == 'W') {   // 'W': con la red propia del display
+      if (savedPoursCount > 0) enterShareMode(psramSavedPours[savedPoursCount - 1].pourId, c == 'W');
+      else Serial.println("[COMPARTIR] No hay pour-overs guardados.");
+    } else if (c == 'l' || c == 'L') {
+      traceListSerial();                        // trazas guardadas (47_trazas.ino)
+    } else if (c == 'f' || c == 'F') {
+      traceDumpSerial(readSerialNumber());      // f<n>: traza n en CSV; 'f' sola: la última
     } else if (c == 'q' || c == 'Q') {
       // Sonda de la cola de la Dot: el tiempo hasta la respuesta es el tamaño de su cola (DOT_COLA_BLE.md)
       sendQueueProbe();

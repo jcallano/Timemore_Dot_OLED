@@ -25,9 +25,9 @@ Todo se maneja con el **encoder**: se gira y se pulsa. El botón BOOT de la plac
 
 | Acción | En el pesaje | En el menú | En el historial |
 | :--- | :--- | :--- | :--- |
-| **Girar** | Cambiar de vista | Mover el cursor / ajustar el valor | Elegir preparación |
-| **1 clic** | Pour-over: cronómetro iniciar / pausar. Espresso: empezar / cortar el shot | Entrar / confirmar | Gráfica ↔ ficha |
-| **2 clics** | **Tara** y cronómetro a 0 | Salir | Salir |
+| **Girar** | Pour-over: **siguiente / anterior paso** (3.2). Espresso: cambiar de vista | Mover el cursor / ajustar el valor | Elegir preparación |
+| **1 clic** | Pour-over: cambiar de vista (en el paso Listo: editar la receta). Espresso: empezar / cortar el shot | Entrar / confirmar | Página siguiente (gráfica, ficha, enviar a Beanconqueror) |
+| **2 clics** | **Tara** (en pour-over, la del paso actual, sin perder el server) | Salir | Salir |
 | **3 clics** o **mantener 1,5 s** | Abrir el menú | Cerrar el menú | Salir |
 | **BOOT mantenido 4 s** | Olvidar la Dot vinculada | | |
 
@@ -41,24 +41,20 @@ Los clics seguidos deben llegar con menos de 0,3 s entre uno y otro.
 
 ### 3.1 Pesaje (pantalla normal)
 
-Es la pantalla al encender. El peso se ve siempre en grande; al girar el encoder se cambia lo que lo acompaña:
+Es la pantalla al encender. El peso se ve siempre en grande y lo acompaña una de estas vistas. En pour-over se cambia de vista con **1 clic** (el giro avanza los pasos, 3.2); en espresso, girando.
 
-| Vista | Qué muestra | Para qué |
+| Vista | Pour-over | Espresso |
 | :--- | :--- | :--- |
-| **0 · Principal** | En pour-over: caudal en g/s con un medidor de 0 a 10 g/s, dosis (`DOSE`), ratio `1:X` y cronómetro. En espresso: la pantalla del shot (3.3) | Pour-over: el medidor marca la **zona ideal de 3,5 a 7,5 g/s**; por encima, la barra sale rayada (vertido demasiado rápido) |
-| **1 · Báscula** | Solo el peso, gigante, y el cronómetro | Pesar café o agua sin distracciones |
-| **2 · Caudal** | Barra de caudal (0-5 g/s), caudal en g/s y cronómetro | Controlar el ritmo de vertido |
-| **3 · Gráfica** | Curva en vivo del caudal de los últimos 16 s y cronómetro | Ver la regularidad de los vertidos |
+| **0** | **Paso guiado**: qué hacer ahora, el peso, el caudal con su medidor y la barra hacia el agua objetivo (3.2) | El shot (3.3) |
+| **1 · Báscula** | Solo el peso, gigante, y el paso en curso | Solo el peso, gigante, y el cronómetro |
+| **2** | **Perfil en vivo**: la gráfica del pour-over dibujándose mientras preparas (3.2) | Barra de caudal (0-5 g/s), caudal en g/s y cronómetro |
+| **3** | | Curva en vivo del caudal de los últimos 16 s |
 
-| Vista 0 · Principal | Vista 1 · Báscula |
-| :---: | :---: |
-| <img src="docs/img/pantallas/05_vista0_principal.png" width="340" alt="Vista principal: caudal con medidor, peso, dosis, ratio y cronómetro"> | <img src="docs/img/pantallas/06_vista1_bascula.png" width="340" alt="Vista báscula: peso gigante y cronómetro"> |
-| **Vista 2 · Caudal** | **Vista 3 · Gráfica** |
-| <img src="docs/img/pantallas/07_vista2_caudal.png" width="340" alt="Vista caudal: barra y caudal en g/s"> | <img src="docs/img/pantallas/08_vista3_grafica.png" width="340" alt="Vista gráfica: curva del caudal en vivo"> |
+| Vista 1 · Báscula | Espresso, vista 2 · Caudal | Espresso, vista 3 · Gráfica |
+| :---: | :---: | :---: |
+| <img src="docs/img/pantallas/06_vista1_bascula.png" width="260" alt="Vista báscula: peso gigante"> | <img src="docs/img/pantallas/07_vista2_caudal.png" width="260" alt="Vista caudal: barra y caudal en g/s"> | <img src="docs/img/pantallas/08_vista3_grafica.png" width="260" alt="Vista gráfica: curva del caudal en vivo"> |
 
-*Capturas reales de la pantalla, con la báscula en reposo.*
-
-En las vistas 1 a 3, la barra superior indica el estado de la Dot y su batería:
+En la vista 1 (y en las 2 y 3 de espresso), la barra superior indica el estado de la Dot y su batería:
 - `[FLOW]`: está cayendo agua;
 - `[STBL]`: peso estable;
 - `[MOVE]`: el peso se está moviendo.
@@ -67,38 +63,69 @@ Con el puente activo (3.5), arriba a la izquierda aparece `BK`: normal mientras 
 
 Si el display tiene medidor de batería, su icono aparece arriba a la derecha. Se anima mientras carga y parpadea por debajo del 10 %.
 
-### 3.2 Preparación de pour-over (Auto-Brew)
+### 3.2 Pour-over guiado
 
-En modo pour-over, el cronómetro puede arrancar y parar solo. Activa o desactiva esta función en *Menú → Auto-Tmr*.
+El pour-over va por pasos. **Girar el encoder una muesca pasa al paso siguiente** y girar hacia atrás vuelve al anterior y deshace lo que hizo. El peso nunca cambia de paso por su cuenta: si tocas el V60 o la jarra sin querer, no pasa nada. La pantalla dice siempre qué hacer y qué hará el siguiente giro (`GIRA >`).
 
-1. Pon el dripper y la jarra sobre la Dot y haz **2 clics**: tara a 0,0 g y cronómetro a 0. El cronómetro aparece como `TIMER(A)`: está armado.
-2. Ajusta la dosis de café en *Menú → Dosis* si ha cambiado. El ratio `1:X` se calcula con ella.
-3. **Vierte.** El cronómetro arranca solo cuando el peso pasa de 0,5 g y el caudal de 0,4 g/s.
-4. **Para terminar:**
-   - **1 clic** detiene el cronómetro y guarda la preparación;
-   - o, con Auto-Brew, **retira el dripper o la jarra**: si el peso se queda 5 s por debajo del 70 % del máximo, el cronómetro se para en el momento de la caída y se guarda. El bloom y las pausas entre vertidos no lo disparan.
-5. Aparece `POUR #N GUARDADO!` con el peso final, el ratio y el tiempo.
+**La receta se ajusta en el paso Listo**, a la vista: **dosis**, **ratio** (el agua objetivo es dosis × ratio) y **bloom** (el agua del bloom de referencia es dosis × factor). **1 clic** resalta la dosis y **girar** la ajusta (de 0,5 en 0,5 g); otro clic pasa al ratio (de 0,1 en 0,1, de 1:10 a 1:20), otro al bloom (de 0,5 en 0,5, de ×1 a ×4) y otro guarda. **2 clics** también guardan. La receta se recuerda al apagar: el siguiente café empieza con la última.
 
-<img src="docs/img/v60_demo.gif" width="544" alt="Animación de un V60: arranque automático del cronómetro, bloom, tres vertidos, aviso de guardado, gráfica y ficha">
+| Listo | Editando la receta |
+| :---: | :---: |
+| <img src="docs/img/pantallas/guia/01_listo.png" width="340" alt="Listo: dosis 15 g, ratio 1:16.7, 251 g de agua, bloom x3 = 45 g"> | <img src="docs/img/pantallas/guia/01b_receta.png" width="340" alt="Receta en edición: la dosis resaltada; girar la ajusta"> |
 
-*Un V60 de principio a fin en la pantalla del aparato, acelerado 10 veces.*
+| Paso | Lo que haces | Lo que hace el aparato |
+| :--- | :--- | :--- |
+| **Listo** | Ajustas la receta si hace falta (1 clic) | Muestra la receta y el agua objetivo |
+| **Server** | Pones el server (la jarra) vacío y giras | Guarda su peso y pone la pantalla a 0 (espera a que el peso esté quieto: `ESPERA PESO QUIETO...`) |
+| **V60 + café** | Pones el V60 con el filtro y el café y giras | Vuelve a poner la pantalla a 0 **sin olvidar el server** |
+| **Bloom** | Vierte el bloom y espera | El cronómetro arranca solo con el primer chorro que deja agua. Muestra el caudal y la barra hacia el agua del bloom. Al dejar de verter cuenta el tiempo de espera (`ESPERA 0:32`), sin avisos: tú decides cuándo seguir |
+| **Vertidos** | Gira al acabar el bloom y vierte el resto | Medidor de caudal, barra hacia el agua objetivo con los gramos que faltan (`-42`) y los vertidos (`B+2`: bloom y 2 tandas). LED amarillo a 10 g del objetivo y rojo al llegar |
+| **Drawdown** | Gira al acabar de verter | Cuenta lo que tarda en bajar el agua |
+| **Yield** | Gira cuando deja de gotear y **quita el V60** | Para el cronómetro y guarda el pour-over. Con el V60 fuera, mide la bebida (`YIELD MEDIDO`): el peso menos el server |
+| **Resumen** | Míralo | Agua, ratio, yield, vertidos, tiempo de bloom, drawdown y caudal |
 
-Sin Auto-Brew, el cronómetro se maneja a mano: 1 clic para iniciar y 1 clic para parar y guardar. Si reanudas y vuelves a parar, se actualiza la misma preparación.
+Desde el resumen, **girar** vuelve a Listo para el siguiente café. Si tienes un DiFluid R2 vinculado, antes abre la medida del TDS de este pour-over.
+
+| V60 + café | Server | Bloom: vertiendo |
+| :---: | :---: | :---: |
+| <img src="docs/img/pantallas/guia/03_v60.png" width="260" alt="V60 con el café pesado: 140 g, pantalla a 0"> | <img src="docs/img/pantallas/guia/02_server.png" width="260" alt="Server pesado: 300 g, pantalla a 0"> | <img src="docs/img/pantallas/guia/04_bloom_vertiendo.png" width="260" alt="Bloom: 22,5 g, caudal 4,4 g/s en la zona ideal, barra hacia 45 g"> |
+| **Bloom: espera** | **Vertidos** | **Yield** |
+| <img src="docs/img/pantallas/guia/05_bloom_espera.png" width="260" alt="Espera del bloom: 0:05"> | <img src="docs/img/pantallas/guia/06_vertidos.png" width="260" alt="Vertidos: 108 g, 3.0 g/s, faltan 143 g, bloom y 1 tanda"> | <img src="docs/img/pantallas/guia/10_yield_medido.png" width="260" alt="Yield medido: 215 g"> |
+| **Resumen** | **Perfil en vivo (vista 2)** | **Menú** |
+| <img src="docs/img/pantallas/guia/11_resumen.png" width="260" alt="Resumen: 250 g de agua, 1:16.7, yield 215 g, bloom y 3 tandas, bloom 0:29, drawdown 0:40"> | <img src="docs/img/pantallas/guia/12_perfil.png" width="260" alt="Perfil: peso acumulado, barras de caudal, línea del objetivo y fin del bloom"> | <img src="docs/img/pantallas/guia/14_menu.png" width="260" alt="Menú de pour-over: molino, TDS, cero del R2 y bolsa nueva"> |
+
+*Capturas de la demostración `v` del monitor serie ([TECNICO.md](./docs/TECNICO.md#5-monitor-serie-115200)): 15 g de café, 250 g de agua, bloom de 45 g y un toque de la tetera durante la espera.*
+
+**El medidor de caudal** va de 0 a 10 g/s y tiene tres zonas: lento, la **zona ideal de 3,5 a 7,5 g/s** (entre las dos muescas) y demasiado rápido (la barra sale rayada).
+
+**Toques de la tetera:** si el pico de la tetera golpea el filtro, el peso sube y vuelve a donde estaba. El aparato no lo cuenta como vertido ni usa su caudal para el máximo; el perfil cuenta esos toques aparte (`TAP 1`).
+
+**Perfil en vivo** (vista 2): la gráfica del historial, dibujándose. La línea es el agua y las barras, el caudal de cada vertido. La línea punteada horizontal es el agua objetivo y la vertical, el fin del bloom. Empieza con 3 minutos de ancho y se estira si el café tarda más.
+
+**2 clics** hacen la tara del paso en curso sin perder el server. En Bloom, Vertidos o Drawdown, además, vuelven a empezar los vertidos (de nuevo en Bloom).
 
 **Historial de pour-overs:** *Menú → Pour-overs (n/10)*. Se guardan las **10 últimas** preparaciones; se conservan al apagar.
 
-- **Gira** para elegir una. La cabecera muestra el número, el peso final, el ratio y la duración.
-- **1 clic** alterna entre:
-  - la **gráfica**: línea del peso acumulado y barras de caudal, con la dosis y el número de vertidos;
-  - la **ficha**: agua, dosis y ratio, caudal medio y máximo, y número de vertidos.
-- Si el primer vertido es pequeño (hasta un tercio del total) y le sigue una espera de 15 s o más, el aparato lo reconoce como **bloom**: la ficha indica `BLOOM+3` (bloom y tres vertidos) y la gráfica `B+3`. Si no, indica solo el número de vertidos (`VERTIDOS:4`, `4V`).
+- **Gira** para elegir una. La cabecera muestra el número, el agua, el ratio y la duración.
+- **1 clic** pasa a la página siguiente: la **gráfica** (la misma que el perfil en vivo), la **ficha** (agua, dosis y ratio, caudal medio y máximo, y vertidos), el gráfico de control si tiene TDS y, al final, **Enviar a Beanconqueror**.
 - **2 o 3 clics** para salir.
 
-| Gráfica | Ficha |
-| :---: | :---: |
-| <img src="docs/img/pantallas/02_historial_grafica.png" width="340" alt="Gráfica del pour-over: peso acumulado en escalones y barras de caudal de cada vertido"> | <img src="docs/img/pantallas/03_historial_ficha.png" width="340" alt="Ficha: 250 g, dosis 15 g, ratio 1:16.7, caudal medio 1.5 y máximo 4.5 g/s, bloom y 3 vertidos"> |
+**Enviar a Beanconqueror:** en la última página del historial, **1 clic**. El aparato apaga el Bluetooth (con el café hecho, la Dot no hace falta), se conecta a tu WiFi y muestra un **código QR**.
 
-*Ejemplo: 15 g de café y 250 g de agua (1:16,7) en 2:45, con un bloom de 45 g y 30 s de espera, y tres vertidos hasta 120, 190 y 250 g. En la gráfica, la línea es el peso acumulado y las barras, el caudal de cada vertido. El aparato reconoce el bloom y lo indica como `BLOOM+3`.*
+1. Escanéalo con la cámara del móvil donde tienes Beanconqueror. Se abre una página del aparato con tus cafés guardados: el elegido y los que aún no enviaste ya vienen marcados.
+2. La primera vez, abre *Nombres en tu Beanconqueror* y escribe el método, el molino y el café **como se llaman en tu app**. El móvil los recuerda.
+3. Toca **Enviar a Beanconqueror**. La app se abre e importa los cafés: dosis, agua, bebida (el yield medido), tiempo, bloom, molienda, fecha y la curva de peso. El **TDS y la extracción** van en la nota, porque la importación de Beanconqueror aún no tiene campo para ellos. Los cafés quedan marcados como **ENVIADO**.
+4. **1 clic** en el aparato para terminar (o se cierra solo a los 3 minutos sin uso). Vuelve el Bluetooth y la Dot se reconecta sola.
+
+| <img src="docs/img/pantallas/guia/15_enviar.png" width="260" alt="Historial, última página: enviar a Beanconqueror el pour-over #22, ya enviado"> | <img src="docs/img/pantallas/guia/16_qr_red_casa.png" width="260" alt="QR con la dirección del aparato en tu WiFi"> | <img src="docs/img/pantallas/guia/17_qr_red_propia.png" width="260" alt="Sin WiFi guardado: QR para unirse a la red TMDOT-8364 del aparato, con su clave"> |
+| :---: | :---: | :---: |
+| Última página del historial | QR de la página (en tu WiFi) | Red propia: QR para unirse |
+
+<img src="docs/img/pantallas/guia/18_pagina_movil.png" width="600" alt="La página en el móvil: lista de pour-overs con casillas, el #22 marcado como enviado y el botón Enviar a Beanconqueror">
+
+Si el aparato no tiene WiFi guardado (se pone en la [página de actualización](https://jcallano.github.io/Timemore_Dot_OLED/ota/)) o no la encuentra, crea **su propia red**: el primer QR sirve para unirse a ella (también se ven el nombre y la clave) y, al unirse el móvil, sale el QR de la página. Hace falta Beanconqueror 8.8.2 o posterior.
+
+**Trazas:** de cada preparación guiada se guarda también una traza con todas las lecturas de la báscula (10 por segundo) y lo que pasó (pasos, vertidos, toques, yield). Se guardan las 8 últimas y se descargan por USB para analizarlas (ver [TECNICO.md](./docs/TECNICO.md#83-trazas)).
 
 ### 3.3 Espresso
 
@@ -147,10 +174,11 @@ PI 8.0S    | 26.6 S          preinfusión | cronómetro del shot
 
 | | Pour-over | Espresso |
 | :--- | :--- | :--- |
-| Vista principal | Caudal con zona ideal, dosis, ratio, cronómetro | Receta, progreso al objetivo, ratio, preinfusión, cronómetro |
-| 1 clic | Cronómetro iniciar / pausar | Empezar / cortar el shot |
-| Arranque automático | Al verter (Auto-Brew) | Con la primera gota, tras una tara |
-| Historial | Pour-overs (bloom y vertidos) | Shots (preinfusión, corte y goteo) |
+| Vista principal | Paso guiado: caudal con zona ideal, progreso al agua objetivo, vertidos | Receta, progreso al objetivo, ratio, preinfusión, cronómetro |
+| Girar | Siguiente / anterior paso | Cambiar de vista |
+| 1 clic | Cambiar de vista | Empezar / cortar el shot |
+| Arranque automático | Con el primer chorro, en el paso Bloom | Con la primera gota, tras una tara |
+| Historial | Pour-overs (bloom, vertidos, yield) | Shots (preinfusión, corte y goteo) |
 
 ### 3.5 Puente con la Wendougee
 
@@ -190,12 +218,11 @@ Se abre con **3 clics** (o manteniendo pulsado 1,5 s). Gira para moverte y haz 1
 
 | Pour-over | Espresso |
 | :---: | :---: |
-| <img src="docs/img/pantallas/04_menu.png" width="340" alt="Menú en modo pour-over: dosis, auto-timer, pour-overs y modo"> | <img src="docs/img/pantallas/12_menu_espresso.png" width="340" alt="Menú en modo espresso: dosis, ratio, tiempo y shots"> |
+| <img src="docs/img/pantallas/guia/14_menu.png" width="340" alt="Menú en modo pour-over: molino, TDS, cero del R2 y bolsa nueva"> | <img src="docs/img/pantallas/12_menu_espresso.png" width="340" alt="Menú en modo espresso: dosis, ratio, tiempo y shots"> |
 
 | Opción | Modo | Qué hace |
 | :--- | :--- | :--- |
-| **Dosis** | los dos | Pour-over: 5-60 g, de 0,5 en 0,5 g. Espresso: 5-30 g, de 0,1 en 0,1 g. Cada modo guarda la suya |
-| **Auto-Tmr: ON/OFF** | pour-over | Arranque y parada automáticos del cronómetro (3.2) |
+| **Dosis** | espresso | 5-30 g, de 0,1 en 0,1 g. La del pour-over se ajusta en su paso Listo (3.2) |
 | **Ratio** | espresso | 1:1,0 a 1:4,0; muestra el peso objetivo (3.3) |
 | **Tiempo** | espresso | Tiempo objetivo del shot, 10-90 s |
 | **Pour-overs (n/10)** / **Shots (n/10)** | según el modo | Abre el historial (3.2 / 3.3) |
@@ -243,9 +270,10 @@ Cuentan como actividad tocar el encoder, cualquier cambio de peso en la Dot y te
 | Rojo intermitente | Sin báscula |
 | Verde | Dot conectada, sin vertido |
 | Cian | Vertido en curso |
-| Amarillo fijo | Espresso: cerca del punto de corte (`CASI`) |
-| Rojo fijo | Espresso: punto de corte alcanzado, corta ya (`CORTA!`) |
+| Amarillo fijo | Espresso: cerca del punto de corte (`CASI`). Pour-over: a 10 g del agua objetivo |
+| Rojo fijo | Espresso: punto de corte alcanzado, corta ya (`CORTA!`). Pour-over: agua objetivo alcanzada |
 | Magenta | Wendougee conectada por el puente (o actualizando el firmware, con su pantalla) |
+| Azul fijo | Enviando a Beanconqueror por WiFi (con el QR en pantalla) |
 | Destello blanco | Acción confirmada (clic, tara…) |
 
 ---
@@ -254,7 +282,7 @@ Cuentan como actividad tocar el encoder, cualquier cambio de peso en la Dot y te
 
 | Problema | Qué hacer |
 | :--- | :--- |
-| Se queda en `BUSCANDO DOT...` | Comprueba que la Dot está encendida y cerca, y que no está conectada a la app del móvil (solo admite una conexión). Si es otra Dot, usa *Re-vincular Dot* |
+| Se queda en `BUSCANDO DOT...` | Comprueba que la Dot está encendida y cerca, y que no está conectada a la app del móvil (solo admite una conexión). Si la Dot llegó a conectar pero no mandó peso (recién encendida u ocupada con otra app), el display la aparta **1 minuto** y vuelve a intentarlo solo; *Re-vincular Dot* lo intenta al momento. Si es otra Dot, usa *Re-vincular Dot* |
 | El peso llega con retraso | No debería ocurrir: el display mantiene vacía la cola de la Dot. Si pasa, apaga y enciende la Dot. Para diagnosticarlo, ver [`COLA_DOT_MTU.md`](./docs/COLA_DOT_MTU.md) |
 | La cafetera no encuentra `BOOKOO_SC_U` | Comprueba que el puente está en ON (`BK` arriba en las vistas 1-3) y que el móvil no tiene abierta una app de básculas BooKoo |
 | La línea `AGE` sale invertida a menudo | Acerca el display a la Dot y a la cafetera; aléjalo de routers y microondas |

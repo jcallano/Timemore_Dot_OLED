@@ -62,7 +62,7 @@ No hace falta ninguna librería de pantalla ni de LED: el driver de la OLED (fue
   esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=cdc,FlashSize=8M,PSRAM=opi,PartitionScheme=default_8MB
   ```
 - [`firmware/partitions.csv`](../firmware/partitions.csv) (incluido en el sketch) fija la tabla de 8 MB con dos apps de 3.2 MB. La NVS se mantiene en `0x9000`, así que se conservan la báscula vinculada, la dosis y el historial. **Al cambiar de tabla, la primera carga debe hacerse por USB.**
-- El firmware ocupa unos 694 KB (20 % de la app). No usa Wi-Fi.
+- El firmware ocupa unos 694 KB (20 % de la app). Usa el Wi-Fi solo al arrancar (la hora, 75_wifi_time.ino) y al enviar cafés a Beanconqueror (8.4), siempre con el Bluetooth apagado.
 - Para publicar una versión que se pueda cargar por Bluetooth: *Sketch → Export Compiled Binary* y sube **`firmware.ino.bin`** (no el `merged` ni el `bootloader`) como archivo de una *release* de GitHub.
 
 ---
@@ -74,7 +74,7 @@ No hace falta ninguna librería de pantalla ni de LED: el driver de la OLED (fue
 3. **MTU grande: la cola de la Dot no crece.** La Dot envía como máximo una notificación cada 100 ms. Con el MTU por defecto (23 bytes) solo cabe una trama de peso por notificación, y cada respuesta a un comando o aviso de batería retrasaba el peso 100 ms para siempre (hasta ~2,4 s tras unos minutos). Ahora se negocia MTU 247 un segundo después de suscribirse: la Dot junta varias tramas por notificación y vacía su cola. De cada notificación se usa la trama de peso (`A5 5A 01 01`) más reciente. Detalles en [`COLA_DOT_MTU.md`](./COLA_DOT_MTU.md).
 4. **Motor de caudal** ([`src/flow_engine.*`](../firmware/src/flow_engine.h)). Combina una ventana de unos 350 ms, una mediana de 3, una EMA adaptativa (α 0.75/0.55/0.35/0.20), histéresis visual de 0.18 g/s y corte por "marca de agua": sin ganancia neta en 300 ms, el caudal pasa a 0.
 5. **Sin carreras entre núcleos.** La tarea BLE (núcleo 0) solo decodifica y encola cada muestra con su hora; `loop()` (núcleo 1) es el único que toca el peso, la tara y el caudal.
-6. **Conexión no bloqueante.** El `connect()` es asíncrono y el descubrimiento se completa en `loop()`. El encoder y la pantalla no se congelan mientras busca la báscula.
+6. **Conexión no bloqueante.** El `connect()` es asíncrono y el descubrimiento se completa en `loop()`. El encoder y la pantalla no se congelan mientras busca la báscula. Una báscula nueva que conecta pero no manda peso (ni ninguna trama Open Scale) en 10 s, o en la que no se puede suscribir, se desconecta y se aparta **60 s** (`rejectMac`, hasta 4 a la vez) para no reconectar en bucle. Antes se apartaba hasta el siguiente reinicio, y una Dot de verdad que tardaba en mandar peso (recién encendida, o con la app del móvil conectada) se quedaba bloqueada incluso tras *Re-vincular*. *Re-vincular* vacía la lista (`clearRejectedMacs`).
 7. **OLED por páginas.** Solo se envían las franjas de 8 filas que cambian. Un volcado completo tarda unos **14-16 ms** (medido); con la pantalla quieta no se transmite nada.
 8. **Encoder por hardware (PCNT)** con filtro de glitches y acumulador con histéresis: una muesca cuenta a los 3 de sus 4 pulsos, sin rebotes en la posición de reposo.
 9. **`Serial` no bloqueante.** Sin monitor abierto, las trazas no frenan la CPU.
@@ -108,16 +108,22 @@ Dot --(0xFFF1, 10 Hz)--> ESP32-S3 --(0x0FFE/0xFF11, trama 03 0B de 20 bytes)--> 
 | `c` | Cronómetro a 0 |
 | `r` | Olvidar la báscula vinculada |
 | `b` | Activar / desactivar el puente BooKoo |
-| `x` | **Autotest** de los módulos (protocolo, motor de caudal y puente BooKoo), con resultado OK/FALLO por caso |
+| `x` | **Autotest** de los módulos puros (protocolo, motor de caudal, vertidos y toques, puente BooKoo, R2, consejo y red del gusto), con resultado OK/FALLO por caso |
 | `q` | **Sonda de la cola de la Dot**: envía `02 08` y mide cuánto tarda la respuesta. Con la cola vacía, unos 100 ms |
 | `s` | **Captura de pantalla**: vuelca el framebuffer de la OLED en hexadecimal (`[FB] BEGIN` … `[FB] END`) |
 | `d` | **Pour-over de demostración**: 15 g / 250 g, bloom de 30 s y 3 vertidos, generado a 10 Hz y pasado por el motor de caudal real. Solo en RAM: no se escribe en la NVS ni cambia el número del siguiente pour-over |
 | `0`-`3` | Vista de pesaje 0 a 3 |
 | `g` / `i` | Historial en el último pour-over: gráfica / ficha |
+| `n` | Historial en la página "Enviar a Beanconqueror" del último pour-over |
+| `h` | Cambiar el idioma de la pantalla (como *Menú → Idioma*) |
+| `w` / `W` | **Enviar a Beanconqueror** el último pour-over (8.4): con la red guardada / forzando la red propia. Durante la sesión, `s` captura la pantalla y `x` la cierra |
 | `m` | Abrir el menú |
 | `e` | **Espresso en vivo** con la receta actual: tara, clic, 7 s de preinfusión, flujo de hasta 2 g/s, clic al llegar al punto de corte y goteo. El shot se guarda solo en RAM; al acabar se restauran el modo, el número del siguiente shot y el goteo aprendido |
 | `k` | Cambiar de modo (pour-over ↔ espresso), como *Menú → Modo* |
-| `v` | **V60 en vivo**: 2 clics (tara y Auto-Brew), la misma receta que `d` vertida en tiempo real (2:45) y 1 clic al final. El peso simulado entra en la cola de muestras a 10 Hz en lugar del de la Dot y recorre todo el firmware. El resultado se guarda solo en RAM; al acabar se restauran la dosis, el Auto-Brew y el número del siguiente pour-over |
+| `v` | **V60 guiado en vivo** (unos 3 min): pone un server de 300 g y gira, pone el V60 con el café (140 g) y gira, gira a Bloom, vierte la receta de `d` en tiempo real con un toque de la tetera a los 20 s, gira al acabar el bloom, al acabar de verter y al acabar el drawdown, quita el V60 (yield 215 g) y gira al resumen. El peso simulado entra en la cola de muestras a 10 Hz en lugar del de la Dot y recorre todo el firmware. El pour-over se guarda solo en RAM y su traza, marcada como demo; al acabar se restauran la receta y el número del siguiente pour-over |
+| `<` / `>` / `.` | Giro del encoder hacia atrás / adelante y clic simulados |
+| `l` | **Lista de trazas** guardadas (número, pour-over, muestras, eventos, receta y fecha) |
+| `f<n>` | **Vuelca la traza n en CSV** (`[CSV] BEGIN` … `[CSV] END`); `f` sola, la última. Ver 8.3 |
 
 **Capturas en PNG:** guarda la salida del monitor serie en un archivo (tras una o varias órdenes `s`) y ejecuta
 
@@ -158,11 +164,73 @@ La vinculación de la Dot solo acepta un dispositivo con servicio Timemore (`0xF
 - **Muestreo** a 5 Hz en el mismo búfer de PSRAM que el pour-over; el registro guarda 60 puntos de peso y caudal.
 - **`ShotRecord`** (148 bytes, `static_assert`): id, duración y preinfusión en décimas, tiempo objetivo, banderas (corte de la cafetera, fin solo, preinfusión válida), dosis, bebida, objetivo, peso al cortar y las dos curvas. Anillo de 10 en el espacio NVS `tmdot_shots` (`s_0`…`s_9`, `next_id`), como los pour-overs.
 - **Ajustes** en `tmdot_pours`: `mode`, `esp_dose`, `esp_ratio`, `esp_tsec`, `esp_reb`.
-- **Menú**: las opciones se construyen según el modo (`buildMenuItems()` con identificadores `MI_*`), así que los números cambian entre pour-over (10 opciones) y espresso (11).
+- **Menú**: las opciones se construyen según el modo (`buildMenuItems()` con identificadores `MI_*`), así que los números cambian entre los dos modos.
 
 ---
 
-## 8. Estructura del código
+## 8. Pour-over guiado por dentro
+
+### 8.1 Pasos y tara en dos capas
+
+[`41_guia.ino`](../firmware/41_guia.ino): `Listo → Server → V60 → Bloom → Vertidos → Drawdown → Yield → Resumen` (`GuideStep`). **Solo el giro del encoder cambia de paso**: el peso mide y avisa, pero nunca avanza solo, porque en la encimera el montaje se toca sin querer. Una muesca es un paso; tras cada cambio se ignoran los giros durante 350 ms para que un giro rápido no salte varios. Girar hacia atrás deshace lo que hizo el paso.
+
+| Paso al que se entra | Qué hace |
+| :--- | :--- |
+| Server | Guarda la tara anterior (para deshacer y para volver a Listo) y empieza la traza. En cuanto el bruto está quieto (±0,3 g durante 0,7 s; como mucho 3 s) guarda `serverRawGrams` y pone la tara ahí |
+| V60 | Igual con el V60 y el café: `dripperRawGrams` y tara. El server sigue guardado |
+| Bloom | Arma la preparación: muestras, segmentador y marcas a cero. El cronómetro arranca con el primer chorro que deja ≥ 2 g (con la hora del inicio del chorro), o con ≥ 5 g y ≥ 0,3 g/s si el chorro es muy lento |
+| Vertidos | Marca el fin del bloom: tiempo, agua y vertidos hasta ahí |
+| Drawdown | Marca el fin del vertido: tiempo y agua total |
+| Yield | Para el cronómetro y guarda el pour-over (`storePourRecord` con el agua marcada y el bloom que marcó el usuario). La bebida se mide al quitar el V60: neto < agua − 20 g, bebida = bruto − server entre el 40 % del agua y el agua + 2 g, quieta 1,5 s. Afina la retención aprendida, como antes la jarra |
+| Resumen | Guarda la traza en la flash. Girar otra vez vuelve a Listo (con la tara de antes del server) y, si hay un R2 vinculado, abre la medida de TDS de este pour-over |
+
+**2 clics** hacen la tara del paso actual sin perder el server; en Bloom, Vertidos o Drawdown reinician los vertidos (vuelve a Bloom armado) y en Yield o Resumen terminan (vuelta a Listo).
+
+Los tiempos que no caben en `PourOverRecord` (272 B sin hueco) van en una tabla aparte de 10 `GuideTiming` de 12 B, unida por el id, en la clave `gt1` de `tmdot_pours`: fin del bloom y fin del vertido en décimas de segundo, agua del bloom, toques descartados y peso del server. La receta se edita en el paso Listo (1 clic: dosis → ratio → bloom → guardar; el giro ajusta) y no en el menú, y se guarda al salir de la edición: `dose_g`, `pr_ratio` (agua = dosis × ratio) y `bloom_x` (agua del bloom de referencia = dosis × factor). La demostración `v` no la guarda.
+
+### 8.2 Vertidos y toques de la tetera
+
+[`src/pour_segmenter.*`](../firmware/src/pour_segmenter.h), módulo puro con autotest. Recibe cada lectura (peso neto y caudal del motor de caudal, ~10 Hz). Un candidato empieza con ≥ 0,8 g/s y termina con ≤ 0,25 g/s; se juzga 0,8 s después, con el peso asentado:
+
+- **Vertido** si deja ≥ 4 g de agua y duró ≥ 1 s. Si empieza menos de 3 s después del anterior, es la misma tanda (la mano se recoloca).
+- **Toque** si no: un golpe del pico contra el filtro sube el peso y lo devuelve a donde estaba. No cuenta como vertido; se cuenta aparte (`TAP` en el perfil) y su pico de caudal no entra en el máximo del registro.
+
+Los umbrales son una primera aproximación; las trazas (8.3) sirven para ajustarlos con datos reales.
+
+### 8.3 Trazas
+
+[`47_trazas.ino`](../firmware/47_trazas.ino). Desde el paso Server hasta volver a Listo se graban en PSRAM **todas** las lecturas de la Dot (`TraceSample`, 12 B: ms, bruto, neto, caudal, estable; tope 6000 = 10 min) y los eventos (`TraceEvent`, 8 B: paso, tara, cronómetro, vertido, toque, yield, vista; tope 160). Al pasar a Resumen se escriben en `/trz/NNNNN.bin` (LittleFS en la partición `spiffs` de 1,5 MB; la primera vez se formatea), con una cabecera (número, pour-over, fecha, receta, server, marca de demo). Se conservan las 8 últimas; el número sigue en la NVS (`trz_seq`). Escribir una traza de 3 min tarda unos 150 ms.
+
+**Descarga** con el display conectado por USB y el monitor serie cerrado:
+
+```text
+powershell -ExecutionPolicy Bypass -File tools\descargar_trazas.ps1 -Port COM14
+```
+
+Crea `trazas/traza_NNNN.csv` con `t_ms,bruto_g,neto_g,caudal_gps,estable` y, al final, los eventos (`#E,t_ms,evento,arg,valor`).
+
+### 8.4 Envío a Beanconqueror
+
+[`77_compartir.ino`](../firmware/77_compartir.ino). Beanconqueror (8.8.2 o posterior) importa preparaciones terminadas con un enlace `beanconqueror://ADD_BREW` (una) o `ADD_BREWS` (hasta 50): un sobre JSON ("handoff" v1) comprimido con gzip, en base64url sin relleno y repartido en parámetros `shareBrew0`, `shareBrew1`… de 400 caracteres, con `len` = longitud total. La especificación está en [`docs/brew-import-api.md`](https://github.com/graphefruit/Beanconqueror/blob/main/docs/brew-import-api.md) de Beanconqueror.
+
+**Sesión** (desde la última página del historial, o `w` por serie): bucle propio, como el modo OTA. Apaga la pila BLE (`shutdownBleStack`) para que el WiFi no comparta la radio, se conecta a la red guardada (10 s como mucho) o crea una red propia `TMDOT-XXXX` con clave aleatoria de 8 cifras, y arranca un `WebServer` en el puerto 80. La OLED muestra un QR (`esp_qrcode`, incluido en el core) con `HTTP://<ip>/P/<id>`: en mayúsculas y sin `?` cabe en modo alfanumérico, versión 2, a 2 px por módulo. Con la red propia, primero sale el QR `WIFI:T:WPA;S:…;P:…;;` y, al unirse una estación, el de la dirección. Se sale con un clic, `x` por serie o 3 min sin peticiones; entonces vuelven `initBleStack` y el escaneo de la Dot.
+
+**API:**
+
+| Ruta | Respuesta |
+| :--- | :--- |
+| `/`, `/P/<id>` | La página (`src/share_page.h`) |
+| `/api/brews` | Resumen de los pour-overs guardados (id, fecha, dosis, agua, bebida, tiempo, TDS, enviado) |
+| `/api/handoff?ids=a,b` | `{"brews":[sobre, …]}`, cada uno ya en el formato de importación |
+| `/api/sent?ids=a,b` | Los marca como enviados (bit 0 de `BrewExtra.flags`) |
+
+**Cada café:** dosis, agua (`waterIn`), bebida medida o estimada (`beverageOut`), tiempo, ratio, molienda (`grindSize`), bloom (`bloomTime`, de `GuideTiming`) y fecha en UTC. Sin hora en el aparato, `date` va a `null` y la página pone la del móvil. La curva (`flow.weight`, decigramos de diferencia, a 2 Hz) sale de la traza a 10 Hz si sigue en la flash (8.3), entre el inicio y el fin del cronómetro; si no, de la gráfica de 120 puntos del registro. `waterDispensed` va a cero. Lo que no tiene campo (TDS, EY, vertidos, toques, caudal, bolsa, sabor) va en `note` y en `imported.params`.
+
+**La página** pone los nombres del usuario (método, tipo de método, molino y café; los guarda en `localStorage`), comprime con `CompressionStream('gzip')`, arma el enlace, marca los cafés como enviados y lo abre. Probado en Android (Chrome) con la red de casa y con la red propia.
+
+---
+
+## 9. Estructura del código
 
 Todo el firmware está en [`firmware/`](../firmware/); la carpeta y la pestaña principal se llaman igual porque el IDE de Arduino lo exige.
 
@@ -173,28 +241,36 @@ Todo el firmware está en [`firmware/`](../firmware/); la carpeta y la pestaña 
 | `20_oled.ino` | Driver de la OLED: dibujo, fuente 5×7 y volcado por páginas |
 | `25_led.ino` | LED RGB de estado |
 | `30_storage.ino` | NVS (báscula vinculada, dosis, anillo de pour-overs) y PSRAM |
-| `40_brew.ino` | Auto-timer, auto-stop y muestreo de la extracción |
+| `40_brew.ino` | Caudal, ciclo del shot y muestreo del pour-over a 2 Hz |
+| `41_guia.ino` | Pour-over guiado: pasos con el encoder, tara en dos capas, arranque con el primer chorro, yield |
+| `47_trazas.ino` | Trazas a 10 Hz: PSRAM, LittleFS y volcado CSV por serie |
+| `46_extraccion.ino` | TDS, bebida, EY, molino, bolsa, sabor y red del gusto |
 | `45_espresso.ino` | Modo espresso: receta, ciclo del shot (preinfusión, corte, goteo), historial de shots en la NVS y demo `e` |
 | `50_ble_scale.ino` | Bluetooth: tramas, tara, cola de muestras, vinculación, escaneo y conexión no bloqueante |
 | `55_bookoo_bridge.ino` | Puente BooKoo: servidor GATT, anuncio, envío a la cafetera y sus comandos |
+| `77_compartir.ino` | Enviar pour-overs a Beanconqueror: WiFi, QR en la OLED, servidor web y cada café en el formato de importación |
+| `src/share_page.h` | La página que sirve el aparato para el envío (lista, nombres del usuario, gzip y enlace) |
 | `60_power.ino` | Batería, reposo (light sleep) y corte (deep sleep) |
 | `70_ota.ino` | Actualización por Bluetooth (servicio OTA y protocolo) |
 | `80_pantalla.ino` | Vistas, menú, visor e icono de batería |
+| `82_pantalla_guia.ino` | Pantallas del pour-over guiado: paso, resumen y perfil en vivo |
 | `85_controles.ino` | Encoder, multiclic, BOOT y órdenes por serie |
 | `90_app.ino` | `setup()` y `loop()` |
 | `src/timemore_protocol.*` | **Módulo puro**: decodificación de notificaciones y construcción de tramas Open Scale (CRC16) |
 | `src/flow_engine.*` | **Módulo puro**: motor de caudal |
+| `src/pour_segmenter.*` | **Módulo puro**: vertidos y toques de la tetera |
 | `src/bookoo_protocol.*` | **Módulo puro**: tramas BooKoo (peso, comandos de la cafetera, anuncio) |
 | `src/selftest.*` | Autotest de los módulos puros (orden `x`) |
 | `partitions.csv` | Tabla de particiones de 8 MB |
 | `../tools/oled_capture.js` | (fuera del sketch) Convierte los volcados de pantalla de la orden `s` en PNG |
 | `../tools/oled_gif.js` | (fuera del sketch) Convierte una serie de volcados en un GIF animado |
+| `../tools/descargar_trazas.ps1` | (fuera del sketch) Descarga las trazas por USB a archivos CSV |
 
 El IDE de Arduino concatena las pestañas `.ino` detrás de la principal en orden alfabético, de ahí los prefijos numéricos. Los módulos de `src/` no dependen de Arduino ni de variables globales, así que se pueden probar con tramas o vertidos simulados (el autotest los ejecuta en la propia placa).
 
 ---
 
-## 9. Otros documentos
+## 10. Otros documentos
 
 | Documento | Contenido |
 | :--- | :--- |

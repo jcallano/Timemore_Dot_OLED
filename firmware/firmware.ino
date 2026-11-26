@@ -47,6 +47,7 @@
 #include <Preferences.h>
 #include <NimBLEDevice.h>
 #include <Update.h>
+#include <LittleFS.h>
 #include <esp_sleep.h>
 #include <esp_heap_caps.h>
 #include <esp_chip_info.h>
@@ -69,6 +70,7 @@
 #include "src/tds_sampler.h"
 #include "src/brew_advisor.h"
 #include "src/taste_model.h"
+#include "src/pour_segmenter.h"
 
 // Idioma de la pantalla (Menú -> Language). Los mensajes del monitor serie siguen en español.
 bool uiEnglish = true;
@@ -337,11 +339,6 @@ volatile bool tareZeroConfirmed          = true;  // true cuando la báscula ya 
 volatile bool tareZeroAmbiguous          = false; // Bruto cayó a 0 con tara activa: ¿se levantó la jarra o fue la tara física?
 unsigned long timerStartMillis           = 0;
 unsigned long timerAccumulatedMs         = 0;
-// Auto-stop: el peso cae < 70 % del máximo de la extracción durante AUTO_STOP_MS
-static constexpr uint32_t AUTO_STOP_MS   = 5000UL;
-float brewMaxWeightGrams                 = 0.0f;
-unsigned long autoStopSinceMs            = 0;
-uint16_t autoStopSampleIdx               = 0;
 
 // Banderas diferidas de control
 volatile bool pendingScaleTare           = false;
@@ -399,11 +396,11 @@ unsigned long bootLastReleaseMs          = 0;
 // Ventana máxima entre clics consecutivos para detectar Single / Double / Triple Click
 static constexpr unsigned long MULTI_CLICK_GAP_MS = 280UL;
 
-// Vistas de la pantalla principal (se cambian girando el encoder; TODAS muestran el PESO en grande):
-// 0 = PESO + RATIO 1:X    (PRINCIPAL POR DEFECTO: Flow arriba + Peso grande 3x + Dosis + Ratio 1:X.X + Cronómetro)
-// 1 = SOLO PESO GIGANTE   (Peso gigante 4x a pantalla completa + indicador de estabilidad)
-// 2 = PESO + FLOW + TIMER (Peso grande 3x arriba + Barra de flujo + Caudal g/s + Cronómetro abajo)
-// 3 = PESO + GRAFICA FLOW (Peso grande 3x arriba + Curva histórica en vivo de Caudal g/s abajo)
+// Vistas de la pantalla principal.
+// Pour-over (se cambian con 1 clic; el giro avanza los pasos):
+//   0 = PASO GUIADO (41_guia.ino), 1 = SOLO PESO GIGANTE, 2 = PERFIL EN VIVO (gráfica del resumen)
+// Espresso (se cambian girando):
+//   0 = SHOT, 1 = SOLO PESO GIGANTE, 2 = PESO + BARRA DE CAUDAL, 3 = PESO + GRÁFICA DE CAUDAL
 uint8_t currentScreenView                = 0;
 static constexpr uint8_t NUM_SCREEN_VIEWS = 4;
 static constexpr uint8_t BOOKOO_SCREEN_VIEW = NUM_SCREEN_VIEWS;  // vista extra "modo puente": solo con la máquina conectada
@@ -427,8 +424,8 @@ BrewMode brewMode                        = BrewMode::PourOver;
 // Menú interactivo controlado con el Encoder (se abre con 3 clics en ENC_SW). Sus opciones dependen del
 // modo: buildMenuItems() (80_pantalla.ino) rellena la lista con estos identificadores.
 enum MenuItemId : uint8_t {
-  MI_MODE, MI_HISTORY, MI_AUTOTIMER, MI_DOSE, MI_RATIO, MI_TARGET_TIME,
-  MI_BRIGHT, MI_BRIDGE, MI_RELINK, MI_UPDATE, MI_SLEEP, MI_EXIT, MI_TDS, MI_JAR, MI_R2ZERO,
+  MI_MODE, MI_HISTORY, MI_DOSE, MI_RATIO, MI_TARGET_TIME,
+  MI_BRIGHT, MI_BRIDGE, MI_RELINK, MI_UPDATE, MI_SLEEP, MI_EXIT, MI_TDS,
   MI_GRIND, MI_BAG, MI_GRIND_DIR, MI_PROFILE, MI_LANG
 };
 static constexpr uint8_t MENU_MAX_ITEMS  = 18;
@@ -474,6 +471,7 @@ unsigned long lastFlowGraphSampleMs      = 0;
 static constexpr uint8_t MAX_SAVED_POURS         = 10;   // Hasta 10 Pour-Overs completos guardados
 static constexpr uint16_t MAX_LIVE_POUR_SAMPLES  = 1200; // 10 min a 2 Hz (cada 500 ms) en PSRAM
 static constexpr uint8_t POUR_GRAPH_POINTS       = 120;  // 120 columnas para graficar en OLED 128x64
+static constexpr float POUR_GRAPH_MAX_GPS        = 8.0f; // escala fija del caudal en las gráficas (g/s)
 
 struct LivePourSample {
   float weightGrams;
@@ -508,8 +506,7 @@ uint32_t totalFlashBytes                 = 0;
 
 uint16_t liveSampleCount                 = 0;
 unsigned long lastLiveSampleMs           = 0;
-uint8_t currentPourPulsesCount           = 0;
-bool wasPouringActive                    = false;
+uint8_t currentPourPulsesCount           = 0;     // vertidos para el registro (los cuenta src/pour_segmenter)
 
 uint8_t savedPoursCount                  = 0;
 uint16_t nextPourSequenceId              = 1;
@@ -524,6 +521,7 @@ volatile bool demoLiveActive             = false;
 int8_t tasteStep = 0, tasteAB = 0, tasteST = 0;
 bool chartShowAdvice = false;   // false = gráfico de control, true = sugerencia
 bool pourViewerShowStatsPage             = false; // false = Gráfica Peso+Flow+Ratio, true = Ficha Técnica
+bool pourViewerShowSendPage              = false; // página "Enviar a Beanconqueror" (77_compartir.ino)
 int8_t selectedPourSlot                  = 0;
 unsigned long pourSavedBannerUntilMs     = 0;
 uint16_t lastSavedPourId                 = 0;
@@ -567,6 +565,56 @@ static constexpr uint8_t TASTE_NONE = 0xFF;
 
 // Estado de la conexión con el DiFluid R2 (58_difluid_r2.ino)
 enum class R2State : uint8_t { Off, Scanning, Connecting, Ready, Measuring, Failed, Calibrating };
+
+// Pour-over guiado (41_guia.ino): los pasos avanzan GIRANDO el encoder, nunca por el peso (el montaje se
+// toca sin querer). Tara en dos capas: server y V60 con el café.
+enum class GuideStep : uint8_t { Ready, Server, Dripper, Bloom, Brew, Drawdown, Yield, Summary };
+GuideStep guideStep                      = GuideStep::Ready;
+pourseg::Segmenter pourSegmenter;                 // vertidos y toques de la tetera (src/pour_segmenter)
+float pourRatio                          = 16.0f; // receta: agua objetivo = dosis x ratio
+float bloomFactor                        = 2.0f;  // agua del bloom de referencia = dosis x factor
+static constexpr float POUR_RATIO_MIN    = 10.0f;
+static constexpr float POUR_RATIO_MAX    = 20.0f;
+static constexpr float BLOOM_FACTOR_MIN  = 1.0f;
+static constexpr float BLOOM_FACTOR_MAX  = 4.0f;
+// El modo guiado le dice a storePourRecord() lo que ya sabe: si hubo bloom (-1 = deducirlo de las
+// muestras, como antes) y el agua total marcada al acabar de verter (< 0 = la del último peso)
+int8_t recordBloomOverride               = -1;
+float recordWaterOverride                = -1.0f;
+
+// Tiempos del pour-over guiado, por registro (el PourOverRecord de 272 B no tiene sitio: tabla aparte en
+// la NVS, unida por el id, como BrewExtra)
+struct GuideTiming {
+  uint16_t id;             // pourId (0 = libre)
+  uint16_t bloomEndDs;     // fin del bloom, décimas de s desde el primer vertido (0 = sin bloom)
+  uint16_t pourEndDs;      // fin del último vertido (empieza el drawdown)
+  uint16_t bloomWaterX10;  // agua del bloom, décimas de g
+  uint8_t  taps;           // toques de la tetera descartados
+  uint8_t  flags;          // reservado
+  uint16_t serverX10;      // peso del server, décimas de g
+};
+static_assert(sizeof(GuideTiming) == 12, "GuideTiming cambió de tamaño");
+
+// Trazas a 10 Hz de cada preparación (47_trazas.ino): todas las lecturas de la Dot y los eventos, para
+// ajustar los filtros con datos reales. Se guardan en la flash (LittleFS) y se descargan por USB.
+struct TraceSample {
+  uint32_t ms;             // desde el inicio de la traza
+  int16_t  rawX10;         // peso bruto de la Dot, décimas de g
+  int16_t  netX10;         // peso neto (el de la pantalla)
+  int16_t  flowX100;       // caudal filtrado, centésimas de g/s
+  uint8_t  stable;
+  uint8_t  pad;
+};
+struct TraceEvent {
+  uint32_t ms;
+  uint8_t  type;           // TraceEv
+  uint8_t  arg;
+  int16_t  valX10;
+};
+enum TraceEv : uint8_t {
+  TE_STEP = 1, TE_TARE, TE_TIMER_START, TE_TIMER_STOP, TE_POUR_START, TE_POUR_OK, TE_POUR_MERGED, TE_TAP,
+  TE_YIELD, TE_CLICK
+};
 
 // Ancla para el generador de prototipos del IDE de Arduino: los prototipos automáticos de todas las
 // pestañas se insertan justo antes de la PRIMERA función de esta pestaña. Si no hubiera ninguna, los
