@@ -92,7 +92,7 @@ Desde el resumen, **girar** vuelve a Listo para el siguiente café. Si tienes un
 | **Bloom: espera** | **Vertidos** | **Yield** |
 | <img src="docs/img/pantallas/guia/05_bloom_espera.png" width="260" alt="Espera del bloom: 0:05"> | <img src="docs/img/pantallas/guia/06_vertidos.png" width="260" alt="Vertidos: 108 g, 3.0 g/s, faltan 143 g, bloom y 1 tanda"> | <img src="docs/img/pantallas/guia/10_yield_medido.png" width="260" alt="Yield medido: 215 g"> |
 | **Resumen** | **Perfil en vivo (vista 2)** | **Menú** |
-| <img src="docs/img/pantallas/guia/11_resumen.png" width="260" alt="Resumen: 250 g de agua, 1:16.7, yield 215 g, bloom y 3 tandas, bloom 0:29, drawdown 0:40"> | <img src="docs/img/pantallas/guia/12_perfil.png" width="260" alt="Perfil: peso acumulado, barras de caudal, línea del objetivo y fin del bloom"> | <img src="docs/img/pantallas/guia/14_menu.png" width="260" alt="Menú de pour-over: molino, TDS, cero del R2 y bolsa nueva"> |
+| <img src="docs/img/pantallas/guia/11_resumen.png" width="260" alt="Resumen: 250 g de agua, 1:16.7, yield 215 g, bloom y 3 tandas, bloom 0:29, drawdown 0:40"> | <img src="docs/img/pantallas/guia/12_perfil.png" width="260" alt="Perfil: peso acumulado, barras de caudal, línea del objetivo y fin del bloom"> | <img src="docs/img/pantallas/guia/14_menu.png" width="260" alt="Menú de pour-over: molino, TDS, bolsa nueva y sentido del molino"> |
 
 *Capturas de la demostración `v` del monitor serie ([TECNICO.md](./docs/TECNICO.md#5-monitor-serie-115200)): 15 g de café, 250 g de agua, bloom de 45 g y un toque de la tetera durante la espera.*
 
@@ -164,9 +164,9 @@ PI 8.0S    | 26.6 S          preinfusión | cronómetro del shot
 
 | En marcha (`CASI`) | Goteo tras cortar | Shot guardado |
 | :---: | :---: | :---: |
-| <img src="docs/img/pantallas/09_espresso_vista.png" width="260" alt="Espresso en marcha: 32,8 g de 36 g, aviso CASI"> | <img src="docs/img/pantallas/13_espresso_goteo.png" width="260" alt="Tras el corte: GOTEO, 35,5 g"> | <img src="docs/img/pantallas/14_shot_guardado.png" width="260" alt="Shot guardado: 35,9 g, 1:1,99, 27,4 s, preinfusión 8 s"> |
+| <img src="docs/img/pantallas/09_espresso_vista.png" width="260" alt="Espresso en marcha: 32,7 g de 36 g, aviso CASI"> | <img src="docs/img/pantallas/13_espresso_goteo.png" width="260" alt="Tras el corte: GOTEO, 35,4 g"> | <img src="docs/img/pantallas/14_shot_guardado.png" width="260" alt="Shot guardado: 35,9 g, 1:1,99, 27,4 s, preinfusión 8 s"> |
 | **Gráfica** | **Ficha** | |
-| <img src="docs/img/pantallas/10_shots_grafica.png" width="260" alt="Gráfica del shot: peso, caudal, objetivo y primera gota"> | <img src="docs/img/pantallas/11_shots_ficha.png" width="260" alt="Ficha del shot: 35,9 g, 1:1,99, 27,4 s, preinfusión 8 s, corte manual +1,9 g"> | |
+| <img src="docs/img/pantallas/10_shots_grafica.png" width="260" alt="Gráfica del shot: peso, caudal, objetivo y primera gota"> | <img src="docs/img/pantallas/11_shots_ficha.png" width="260" alt="Ficha del shot: 35,9 g, 1:1,99, 27,5 s, preinfusión 8 s, TDS 9,60 % y extracción 19,1 %"> | |
 
 > **Con la Wendougee** (puente activo, 3.5), es la cafetera la que arranca, hace la tara y corta el shot. El aparato también guarda esos shots en el historial, en cualquier modo, con la preinfusión medida desde que la cafetera arranca.
 
@@ -218,7 +218,7 @@ Se abre con **3 clics** (o manteniendo pulsado 1,5 s). Gira para moverte y haz 1
 
 | Pour-over | Espresso |
 | :---: | :---: |
-| <img src="docs/img/pantallas/guia/14_menu.png" width="340" alt="Menú en modo pour-over: molino, TDS, cero del R2 y bolsa nueva"> | <img src="docs/img/pantallas/12_menu_espresso.png" width="340" alt="Menú en modo espresso: dosis, ratio, tiempo y shots"> |
+| <img src="docs/img/pantallas/guia/14_menu.png" width="340" alt="Menú en modo pour-over: molino, TDS, bolsa nueva y sentido del molino"> | <img src="docs/img/pantallas/12_menu_espresso.png" width="340" alt="Menú en modo espresso: dosis, ratio, tiempo y shots"> |
 
 | Opción | Modo | Qué hace |
 | :--- | :--- | :--- |
